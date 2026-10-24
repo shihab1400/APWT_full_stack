@@ -123,6 +123,7 @@ export class AppointmentsService {
       type: 'APPOINTMENT_REQUESTED',
       title: `New booking request from ${appointment.patient.name}`,
       body: describe(appointment),
+      email: true,
       link: DOCTOR_LINK,
     });
     await this.notifications.notify(user.id, {
@@ -155,6 +156,7 @@ export class AppointmentsService {
       type: 'APPOINTMENT_CANCELLED',
       title: `${appt.patient.name} cancelled their appointment`,
       body: [describe(appt), reason].filter(Boolean).join('. '),
+      email: true,
       link: DOCTOR_LINK,
     });
     return updated;
@@ -179,6 +181,7 @@ export class AppointmentsService {
       type: 'APPOINTMENT_ACCEPTED',
       title: `${appt.doctor.user.name} confirmed your appointment`,
       body: describe(appt),
+      email: true,
       link: PATIENT_LINK,
     });
     return updated;
@@ -194,6 +197,7 @@ export class AppointmentsService {
       type: 'APPOINTMENT_DECLINED',
       title: `${appt.doctor.user.name} declined your request`,
       body: `${describe(appt)}. Reason: ${reason}`,
+      email: true,
       link: PATIENT_LINK,
     });
     return updated;
@@ -213,6 +217,7 @@ export class AppointmentsService {
       type: 'APPOINTMENT_CANCELLED',
       title: `${appt.doctor.user.name} cancelled your appointment`,
       body: `${describe(appt)}. Reason: ${reason}`,
+      email: true,
       link: PATIENT_LINK,
     });
     return updated;

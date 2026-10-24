@@ -224,3 +224,10 @@ Versions actually installed: Next.js 16.4, React 19.3, NestJS 12 (ESM, Vitest, o
   - Fan-out is in-process; running several API instances would need Redis pub/sub.
 - **Admin:** `/admin/appointments` lists every appointment with status, type and date-range filters (FR #21).
 - **Seed (development only):** demo doctors get Sunday–Thursday hours and two get clinic addresses; a Premium demo patient `patient@demo.mindease.local` / `Patient12345`.
+
+## Email delivery (2026-10-24, between phases 4 and 5)
+- **Transport:** Nodemailer over SMTP, configured for Gmail with an App Password (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`). Without credentials, or under `NODE_ENV=test`, emails are logged instead of sent.
+- **Behaviour:** sending happens in the background; a failed email is logged and never fails the request. The API checks the SMTP login at startup and logs `SMTP ready` or a warning.
+- **Emails:** verification (plus `POST /api/auth/resend-verification` and a "Resend email" button), doctor approved/rejected, booking request to the doctor, confirmed/declined/cancelled, 15-minute reminder, expired request, and the contact-form receipt.
+  - The patient's own "request sent" notice stays in-app only.
+- **Privacy:** one shared HTML + plain-text template with all user text escaped. Emails carry no assessment, chat or risk data, and not the patient's booking note. The contact receipt echoes nothing the visitor typed, so the form can't relay text to arbitrary addresses.

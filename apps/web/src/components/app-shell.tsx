@@ -3,10 +3,37 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { DASHBOARD_BY_ROLE, type AuthUser, type Role } from "@mindease/shared";
 import { NotificationBell } from "@/components/notification-bell";
 import { Button, Logo } from "@/components/ui";
+import { api } from "@/lib/api";
 import { useLogout, useMe } from "@/lib/auth";
+
+function VerifyEmailBanner({ email }: { email: string }) {
+  const resend = useMutation({
+    mutationFn: () => api<void>("/auth/resend-verification", { method: "POST" }),
+  });
+  return (
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-warning-soft px-4 py-2 text-sm">
+      <p>
+        Please verify your email address. We sent a link to <strong>{email}</strong>.
+      </p>
+      {resend.isSuccess ? (
+        <span role="status" className="text-muted">
+          New link sent. Check your inbox and spam folder.
+        </span>
+      ) : (
+        <span className="flex items-center gap-2">
+          {resend.error && <span className="text-danger">{resend.error.message}</span>}
+          <Button variant="ghost" disabled={resend.isPending} onClick={() => resend.mutate()}>
+            {resend.isPending ? "Sending…" : "Resend email"}
+          </Button>
+        </span>
+      )}
+    </div>
+  );
+}
 
 export interface NavItem {
   href: string;
@@ -82,11 +109,7 @@ export function AppShell({
         </div>
       </header>
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-        {!user.emailVerified && (
-          <p className="mb-6 rounded-lg bg-warning-soft px-4 py-2 text-sm">
-            Please verify your email address. Check your inbox for the link.
-          </p>
-        )}
+        {!user.emailVerified && <VerifyEmailBanner email={user.email} />}
         {children(user)}
       </main>
     </div>

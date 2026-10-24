@@ -14,6 +14,7 @@ import { ContactModule } from './contact/contact.module.js';
 import { ContentModule } from './content/content.module.js';
 import { DoctorsModule } from './doctors/doctors.module.js';
 import { HealthController } from './health.controller.js';
+import { MailModule } from './mail/mail.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { RiskModule } from './risk/risk.module.js';
@@ -26,6 +27,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module.js';
     PrismaModule,
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     SubscriptionsModule,
+    MailModule,
     NotificationsModule,
     AuthModule,
     AdminModule,

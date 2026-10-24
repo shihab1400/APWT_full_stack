@@ -18,6 +18,7 @@ import type {
   SubscriptionTier,
 } from '@mindease/shared';
 import { ENV, type Env } from '../config/env.js';
+import { MailService } from '../mail/mail.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { TierService } from '../subscriptions/tier.service.js';
 import type { User } from '../generated/prisma/client.js';
@@ -46,6 +47,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly tiers: TierService,
     @Inject(ENV) private readonly env: Env,
+    private readonly mail: MailService,
   ) {}
 
   async register(dto: RegisterDto): Promise<AuthResult> {
@@ -66,11 +68,7 @@ export class AuthService {
       },
     });
 
-    // Email delivery arrives in a later phase; until then, surface the link in the logs.
-    this.logger.log(
-      `Verify ${user.email}: ${this.env.WEB_ORIGIN}/verify-email?token=${verificationToken}`,
-    );
-
+    this.sendVerification(user, verificationToken);
     return this.issueFor(user);
   }
 
@@ -123,6 +121,34 @@ export class AuthService {
     await this.prisma.user.update({
       where: { id: user.id },
       data: { emailVerified: true, emailVerificationToken: null },
+    });
+  }
+
+  /** Issues a fresh verification link, invalidating the previous one. */
+  async resendVerification(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('Not authenticated');
+    if (user.emailVerified) throw new ConflictException('Your email is already verified');
+    const token = randomBytes(32).toString('hex');
+    await this.prisma.user.update({ where: { id: userId }, data: { emailVerificationToken: token } });
+    this.sendVerification(user, token);
+  }
+
+  private sendVerification(user: Pick<User, 'email' | 'name'>, token: string) {
+    const url = this.mail.link(`/verify-email?token=${token}`);
+    // Without SMTP, the link only reaches the developer through the log.
+    if (!this.mail.enabled && this.env.NODE_ENV === 'development') {
+      this.logger.log(`Verify ${user.email}: ${url}`);
+    }
+    this.mail.send({
+      to: user.email,
+      name: user.name,
+      subject: 'Confirm your email for MindEase Oasis',
+      paragraphs: [
+        'Thanks for joining MindEase Oasis. Please confirm this is your email address.',
+        "If you didn't create an account, you can ignore this email.",
+      ],
+      action: { label: 'Confirm email', url },
     });
   }
 

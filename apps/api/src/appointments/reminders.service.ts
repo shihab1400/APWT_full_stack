@@ -73,12 +73,14 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
         type: 'APPOINTMENT_REMINDER',
         title: `Your session with ${a.doctor.user.name} starts in ${minutes} minutes`,
         body: when,
+        email: true,
         link: PATIENT_LINK,
       });
       await this.notifications.notify(a.doctor.userId, {
         type: 'APPOINTMENT_REMINDER',
         title: `Session with ${a.patient.name} starts in ${minutes} minutes`,
         body: when,
+        email: true,
         link: DOCTOR_LINK,
       });
       sent++;
@@ -103,6 +105,7 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
         type: 'APPOINTMENT_EXPIRED',
         title: `Your request to ${a.doctor.user.name} expired`,
         body: `${formatDhaka(a.startsAt)}. ${EXPIRED_REASON}. Please choose another time.`,
+        email: true,
         link: PATIENT_LINK,
       });
       expired++;

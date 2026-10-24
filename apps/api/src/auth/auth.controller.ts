@@ -91,6 +91,15 @@ export class AuthController {
     return { verified: true };
   }
 
+  @Post('resend-verification')
+  @HttpCode(204)
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  @ApiCookieAuth(ACCESS_TOKEN_COOKIE)
+  @ApiOperation({ summary: 'Email a new verification link to the current user' })
+  async resendVerification(@CurrentUser() user: RequestUser): Promise<void> {
+    await this.auth.resendVerification(user.id);
+  }
+
   @Get('me')
   @ApiCookieAuth(ACCESS_TOKEN_COOKIE)
   @ApiOperation({ summary: 'The current user' })

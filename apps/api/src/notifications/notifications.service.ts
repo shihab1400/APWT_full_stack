@@ -1,6 +1,7 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Subject, filter, map, type Observable } from 'rxjs';
 import type { NotificationItem, NotificationList, NotificationType } from '@mindease/shared';
+import { MailService } from '../mail/mail.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { Notification } from '../generated/prisma/client.js';
 
@@ -9,7 +10,7 @@ export interface NewNotification {
   title: string;
   body?: string;
   link?: string;
-  /** Also "send" by email. Delivery is logged until an email provider is configured. */
+  /** Also send by email (logged instead when SMTP is not configured). */
   email?: boolean;
 }
 
@@ -17,11 +18,13 @@ const LIST_LIMIT = 30;
 
 @Injectable()
 export class NotificationsService {
-  private readonly logger = new Logger(NotificationsService.name);
   /** In-process fan-out to open streams. A multi-instance deploy would swap this for Redis pub/sub. */
   private readonly events = new Subject<{ userId: string; item: NotificationItem }>();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+  ) {}
 
   /** Stores a notification for each user and pushes it to their open streams. */
   async notify(userIds: string | string[], n: NewNotification): Promise<void> {
@@ -33,10 +36,18 @@ export class NotificationsService {
     }
     if (email) {
       const users = await this.prisma.user.findMany({
-        where: { id: { in: ids } },
-        select: { email: true },
+        where: { id: { in: ids }, status: 'ACTIVE' },
+        select: { email: true, name: true },
       });
-      for (const u of users) this.logger.log(`Email to ${u.email}: ${n.title}`);
+      for (const u of users) {
+        this.mail.send({
+          to: u.email,
+          name: u.name,
+          subject: n.title,
+          paragraphs: [n.title, ...(n.body ? [n.body] : [])],
+          action: n.link ? { label: 'Open MindEase Oasis', url: this.mail.link(n.link) } : undefined,
+        });
+      }
     }
   }
 
