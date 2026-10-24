@@ -92,7 +92,7 @@ Cross-cutting: global exception filter, Helmet, CORS allow-list, rate limiting (
 3. ✅ **Assessment + AI chat (done 2026-10-24):** quiz engine and scoring, Gemini streaming chat, daily cap, risk detection and alerts.
 4. ✅ **Doctors + booking (done 2026-10-24):** registration, admin approval, availability, appointments, notifications and reminders.
 5. ✅ **Payments + subscription (done 2026-10-24):** SSLCommerz sandbox, upgrade flow, fee cap, transaction rollback, admin ledger.
-6. **Doctor tools + admin:** consultation notes, earnings, reviews and moderation, user management, audit log, quiz CRUD.
+6. ✅ **Doctor tools + admin (done 2026-10-25):** consultation notes, earnings, reviews and moderation, user management, audit log, quiz CRUD.
 7. **Text messaging:** per-appointment patient–doctor chat (WebSocket), message history, unread badges.
 8. **Hardening:** encryption at rest, rate limits, tests, performance pass, deployment (Vercel/Render or a VPS), daily `pg_dump` backup job.
 
@@ -257,3 +257,32 @@ Versions actually installed: Next.js 16.4, React 19.3, NestJS 12 (ESM, Vitest, o
   - The booking page shows "Pay X BDT and request". Patient appointments show payment and refund status.
 - **Verified live:** sandbox sessions open, status checks reach the sandbox, and a gateway "cancel" posted through the Next proxy fails the payment and frees the slot. Completing a sandbox payment needs a browser on the SSLCommerz page.
 - **Production note:** the IPN needs a public URL (`PAYMENT_CALLBACK_BASE_URL`). On localhost the browser return plus the status check and expiry sweep do the settling.
+
+## Phase 6 implementation notes (2026-10-25)
+- **Migration `doctor_tools_and_moderation`:**
+  - `Appointment.shareAssessments`.
+  - `RiskAlert.followedUpAt` and `followUpNote`.
+  - `Review.reportReason` and `moderatedAt`.
+- **Privacy decisions (confirmed with the user):**
+  - Assessment results reach a doctor only if the patient opts in. There is a checkbox at booking (ticked by default), and the patient can change it per appointment.
+  - Reviews appear publicly as "Verified patient".
+  - Doctors and admins never see AI chat content.
+  - The privacy policy and the privacy FAQs were updated; the seed keeps the privacy FAQs in sync.
+- **Doctor tools (FR #29–31):**
+  - `/doctor/patients`: anyone with a paid request, confirmed or completed session.
+  - Patient record: shared assessment history (score, risk level, self-harm flag), sessions with this doctor, and this doctor's notes.
+  - Notes can be added to confirmed or completed sessions and edited, with created and edited times. They are visible only to the writing doctor; no patient endpoint returns them.
+  - `/doctor/earnings`: consultation ID, patient, type, fee, payment date and reference, plus monthly and all-time totals, for completed paid sessions. Payouts to doctors happen outside the app.
+- **Reviews (FR_4, FR #23):**
+  - One review per completed appointment; once given, the "Rate doctor" button is replaced by the rating.
+  - Public rating counts VISIBLE and FLAGGED reviews.
+  - Doctors can report a review (it becomes FLAGGED and stays public until decided).
+  - Admins can show, flag or hide a review with a reason (audited `REVIEW_HIDDEN`, `REVIEW_FLAGGED`, `REVIEW_RESTORED`).
+- **Admin:**
+  - **Risk alerts (FR #20):** severity, source, whether the user booked a doctor, and "Mark followed up" with a note (audited).
+  - **Assessments (FR_3, FR #22):** create a draft, edit settings and thresholds ("Save logic"), add, update or delete questions with option scores and the critical flag.
+    - Validation: the high threshold must be above the moderate one and no more than the maximum possible score. A quiz can't be published without questions.
+    - Audited as `QUIZ_MODIFIED` (before/after values) and `QUIZ_QUESTION_*`.
+  - **Audit log (FR #24):** time, admin ID and name, action, target, reason and details, filterable by action and dates.
+  - **Users (FR_2):** search by name or email, filter by role and status; deactivation asks for a reason in an inline box. A deactivated login shows "Account suspended…".
+- **Robustness fix:** notification delivery is best effort. A failure (e.g. the recipient was just deleted) is logged and no longer turns a completed action into a 500.

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBody, ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import {
@@ -7,9 +7,11 @@ import {
   bookAppointmentSchema,
   cancelAppointmentSchema,
   declineAppointmentSchema,
+  shareAssessmentsSchema,
   type BookAppointmentDto,
   type CancelAppointmentDto,
   type DeclineAppointmentDto,
+  type ShareAssessmentsDto,
 } from '@mindease/shared';
 import { DAY_MS } from '../common/dhaka-time.js';
 import { CurrentUser, Roles, type RequestUser } from '../common/decorators.js';
@@ -53,6 +55,17 @@ export class PatientAppointmentsController {
     @Body(new ZodValidationPipe(cancelAppointmentSchema)) dto: CancelAppointmentDto,
   ) {
     return this.appointments.cancelByPatient(user.id, id, dto.reason);
+  }
+
+  @Patch(':id/sharing')
+  @ApiOperation({ summary: 'Share (or stop sharing) my self-assessment results with this doctor' })
+  @ApiBody({ schema: openApiSchema(shareAssessmentsSchema) })
+  setSharing(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(shareAssessmentsSchema)) dto: ShareAssessmentsDto,
+  ) {
+    return this.appointments.setSharing(user.id, id, dto.share);
   }
 }
 

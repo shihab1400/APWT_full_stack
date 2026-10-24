@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import type { PublicDoctor } from "@mindease/shared";
+import type { PublicDoctor, PublicReview } from "@mindease/shared";
 import { Rating, formatBdt } from "@/components/doctor-card";
 import { ButtonLink, Card } from "@/components/ui";
+import { formatDay } from "@/lib/datetime";
 import { serverApi } from "@/lib/server-api";
 import { peekSession } from "@/lib/session";
 
@@ -66,7 +67,41 @@ async function DoctorProfile({ params }: Pick<PageProps<"/doctors/[id]">, "param
         </div>
         <BookingAction doctorId={doctor.id} />
       </Card>
+
+      <section aria-labelledby="reviews" className="flex flex-col gap-3 lg:col-span-2">
+        <h2 id="reviews" className="text-lg font-semibold">
+          Patient reviews
+        </h2>
+        <Suspense fallback={<p className="text-sm text-muted">Loading reviews…</p>}>
+          <Reviews doctorId={doctor.id} />
+        </Suspense>
+      </section>
     </div>
+  );
+}
+
+async function Reviews({ doctorId }: { doctorId: string }) {
+  const reviews = await serverApi<PublicReview[]>(`/doctors/${doctorId}/reviews`);
+  if (!reviews.length) {
+    return <p className="text-sm text-muted">No reviews yet. Patients can rate a doctor after a completed session.</p>;
+  }
+  return (
+    <ul className="flex flex-col gap-3">
+      {reviews.map((r) => (
+        <li key={r.id}>
+          <Card className="flex flex-col gap-2 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <span className="text-amber-500" role="img" aria-label={`${r.rating} out of 5 stars`}>
+                {"★".repeat(r.rating)}
+                <span className="text-border">{"★".repeat(5 - r.rating)}</span>
+              </span>
+              <span className="text-muted">Verified patient · {formatDay(r.createdAt)}</span>
+            </div>
+            {r.comment && <p className="text-sm leading-6">{r.comment}</p>}
+          </Card>
+        </li>
+      ))}
+    </ul>
   );
 }
 

@@ -9,3 +9,6 @@ export * from './scheduling.js';
 export * from './appointments.js';
 export * from './notifications.js';
 export * from './payments.js';
+export * from './reviews.js';
+export * from './consultations.js';
+export * from './admin.js';

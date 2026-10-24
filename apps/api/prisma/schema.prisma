@@ -122,7 +122,7 @@ model DoctorProfile {
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
 
-  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   availability AvailabilitySlot[]
   blocks       AvailabilityBlock[]
   appointments Appointment[]
@@ -176,21 +176,23 @@ enum AppointmentStatus {
 }
 
 model Appointment {
-  id            String            @id @default(uuid())
-  patientId     String
-  doctorId      String
-  type          AppointmentType
-  status        AppointmentStatus @default(PENDING_PAYMENT)
-  startsAt      DateTime
-  endsAt        DateTime
+  id               String            @id @default(uuid())
+  patientId        String
+  doctorId         String
+  type             AppointmentType
+  status           AppointmentStatus @default(PENDING_PAYMENT)
+  startsAt         DateTime
+  endsAt           DateTime
   /// What the patient would like to discuss, shown to the doctor.
-  patientNote   String?
-  declineReason String?
-  cancelReason  String?
-  cancelledById String?
-  reminderSent  Boolean           @default(false)
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  patientNote      String?
+  /// Patient agreed to let this doctor see their self-assessment results (FR #29).
+  shareAssessments Boolean           @default(false)
+  declineReason    String?
+  cancelReason     String?
+  cancelledById    String?
+  reminderSent     Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
   patient  User                  @relation("PatientAppointments", fields: [patientId], references: [id])
   doctor   DoctorProfile         @relation(fields: [doctorId], references: [id])
@@ -304,18 +306,18 @@ model Quiz {
   /// Scores >= this value are treated as high risk and trigger a doctor recommendation.
   highRiskScore     Int
   active            Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   questions QuizQuestion[]
   attempts  QuizAttempt[]
 }
 
 model QuizQuestion {
-  id      String @id @default(uuid())
-  quizId  String
-  order   Int
-  text    String
+  id       String  @id @default(uuid())
+  quizId   String
+  order    Int
+  text     String
   /// [{ "label": "Not at all", "score": 0 }, …]
   options  Json
   /// Any non-zero answer makes the attempt HIGH risk regardless of total (e.g. self-harm item).
@@ -359,6 +361,9 @@ model RiskAlert {
   detail       String?
   bookedDoctor Boolean    @default(false)
   followedUp   Boolean    @default(false)
+  followedUpAt DateTime?
+  /// Admin's note on how the follow-up was handled.
+  followUpNote String?
   createdAt    DateTime   @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -413,6 +418,9 @@ model Review {
   rating        Int // 1–5
   comment       String?
   status        ReviewStatus @default(VISIBLE)
+  /// Why the doctor reported it, if they did.
+  reportReason  String?
+  moderatedAt   DateTime?
   createdAt     DateTime     @default(now())
 
   appointment Appointment   @relation(fields: [appointmentId], references: [id])

@@ -44,6 +44,10 @@ async function main() {
   if ((await prisma.faq.count()) === 0) {
     await prisma.faq.createMany({ data: faqs.map((f, order) => ({ ...f, order })) });
   }
+  // Privacy answers must match how the app actually behaves, so they are kept in sync.
+  for (const f of faqs.filter((f) => f.category === 'Privacy & Safety')) {
+    await prisma.faq.updateMany({ where: { question: f.question }, data: { answer: f.answer } });
+  }
 
   for (const [i, post] of blogPosts.entries()) {
     await prisma.blogPost.upsert({

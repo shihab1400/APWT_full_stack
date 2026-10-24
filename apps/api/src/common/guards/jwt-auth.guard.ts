@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
-import { ACCESS_TOKEN_COOKIE, type JwtPayload } from '@mindease/shared';
+import { ACCESS_TOKEN_COOKIE, ACCOUNT_SUSPENDED_MESSAGE, type JwtPayload } from '@mindease/shared';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { IS_PUBLIC_KEY, type AuthedRequest } from '../decorators.js';
 
@@ -47,7 +47,7 @@ export class JwtAuthGuard implements CanActivate {
       select: { id: true, role: true, status: true },
     });
     if (!user) throw new UnauthorizedException('Not authenticated');
-    if (user.status !== 'ACTIVE') throw new ForbiddenException('Account is deactivated');
+    if (user.status !== 'ACTIVE') throw new ForbiddenException(ACCOUNT_SUSPENDED_MESSAGE);
 
     req.user = { id: user.id, role: user.role, tier: payload.tier };
     return true;

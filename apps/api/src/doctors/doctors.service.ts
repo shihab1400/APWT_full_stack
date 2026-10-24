@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { PublicDoctor } from '@mindease/shared';
 import { publicDoctorWhere } from '../content/content.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { PUBLIC_REVIEW_STATUSES } from '../reviews/reviews.service.js';
 
 // Only fields that are safe to show a guest: no email, licence or patient data.
 const publicSelect = {
@@ -65,7 +66,7 @@ export class DoctorsService {
     if (!doctorIds.length) return new Map<string, { avg: number | null; count: number }>();
     const rows = await this.prisma.review.groupBy({
       by: ['doctorId'],
-      where: { doctorId: { in: doctorIds }, status: 'VISIBLE' },
+      where: { doctorId: { in: doctorIds }, status: { in: PUBLIC_REVIEW_STATUSES } },
       _avg: { rating: true },
       _count: { _all: true },
     });

@@ -28,7 +28,7 @@ import type { Prisma } from '../generated/prisma/client.js';
 export const PATIENT_LINK = '/dashboard/appointments';
 export const DOCTOR_LINK = '/doctor/appointments';
 
-const include = {
+export const appointmentInclude = {
   doctor: {
     select: {
       id: true,
@@ -41,9 +41,10 @@ const include = {
   },
   patient: { select: { id: true, name: true, email: true } },
   payment: { select: { reference: true, status: true, amount: true } },
+  review: { select: { rating: true } },
 } as const;
 
-type AppointmentRow = Prisma.AppointmentGetPayload<{ include: typeof include }>;
+type AppointmentRow = Prisma.AppointmentGetPayload<{ include: typeof appointmentInclude }>;
 
 export interface AdminAppointmentFilters {
   status?: AppointmentStatus;
@@ -114,6 +115,7 @@ export class AppointmentsService {
           startsAt: slot.startsAt,
           endsAt: slot.endsAt,
           patientNote: dto.note || null,
+          shareAssessments: dto.shareAssessments,
         },
       });
       // The amount is always the doctor's own fee; the client never sends one.
@@ -123,7 +125,7 @@ export class AppointmentsService {
         doctorId: doctor.id,
         amount: doctor.fee.toNumber(),
       });
-      const appointment = await tx.appointment.findUniqueOrThrow({ where: { id: created.id }, include });
+      const appointment = await tx.appointment.findUniqueOrThrow({ where: { id: created.id }, include: appointmentInclude });
       return { appointment, payment };
     });
 
@@ -137,10 +139,17 @@ export class AppointmentsService {
     return { ...checkout, appointment: toItem(appointment) };
   }
 
+  /** The patient turns sharing of their assessment results with this doctor on or off. */
+  async setSharing(userId: string, id: string, share: boolean): Promise<AppointmentItem> {
+    const appt = await this.find(id, { patientId: userId });
+    await this.prisma.appointment.update({ where: { id: appt.id }, data: { shareAssessments: share } });
+    return toItem(await this.prisma.appointment.findUniqueOrThrow({ where: { id: appt.id }, include: appointmentInclude }));
+  }
+
   async listForPatient(userId: string): Promise<AppointmentItem[]> {
     const rows = await this.prisma.appointment.findMany({
       where: { patientId: userId },
-      include,
+      include: appointmentInclude,
       orderBy: { startsAt: 'desc' },
       take: 200,
     });
@@ -170,7 +179,7 @@ export class AppointmentsService {
   async listForDoctor(doctorUserId: string): Promise<AppointmentItem[]> {
     const rows = await this.prisma.appointment.findMany({
       where: { doctor: { userId: doctorUserId }, status: { not: 'PENDING_PAYMENT' } },
-      include,
+      include: appointmentInclude,
       orderBy: { startsAt: 'asc' },
       take: 300,
     });
@@ -245,7 +254,7 @@ export class AppointmentsService {
         type: f.type,
         startsAt: { gte: f.from, lt: f.to },
       },
-      include,
+      include: appointmentInclude,
       orderBy: { startsAt: 'desc' },
       take: 500,
     });
@@ -256,7 +265,7 @@ export class AppointmentsService {
 
   private async find(id: string, owner: Prisma.AppointmentWhereInput): Promise<AppointmentRow> {
     // Someone else's appointment looks the same as a missing one.
-    const appt = await this.prisma.appointment.findFirst({ where: { id, ...owner }, include });
+    const appt = await this.prisma.appointment.findFirst({ where: { id, ...owner }, include: appointmentInclude });
     if (!appt) throw new NotFoundException('Appointment not found');
     return appt;
   }
@@ -278,7 +287,7 @@ export class AppointmentsService {
     if (!count) {
       throw new ConflictException(`This appointment is ${appt.status.toLowerCase()} and can't be changed`);
     }
-    return toItem(await this.prisma.appointment.findUniqueOrThrow({ where: { id: appt.id }, include }));
+    return toItem(await this.prisma.appointment.findUniqueOrThrow({ where: { id: appt.id }, include: appointmentInclude }));
   }
 }
 
@@ -290,6 +299,7 @@ export function toItem(a: AppointmentRow): AppointmentItem {
     startsAt: a.startsAt.toISOString(),
     endsAt: a.endsAt.toISOString(),
     patientNote: a.patientNote,
+    shareAssessments: a.shareAssessments,
     declineReason: a.declineReason,
     cancelReason: a.cancelReason,
     cancelledBy:
@@ -312,5 +322,6 @@ export function toItem(a: AppointmentRow): AppointmentItem {
     payment: a.payment
       ? { reference: a.payment.reference, status: a.payment.status, amount: a.payment.amount.toNumber() }
       : null,
+    review: a.review,
   };
 }

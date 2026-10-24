@@ -47,6 +47,7 @@ function Booking({ doctorId, user }: { doctorId: string; user: AuthUser }) {
   const [startsAt, setStartsAt] = useState<string>();
   const [type, setType] = useState<AppointmentType>("ONLINE");
   const [note, setNote] = useState("");
+  const [share, setShare] = useState(true);
 
   const book = useMutation({
     mutationFn: (dto: BookAppointmentDto) =>
@@ -117,7 +118,9 @@ function Booking({ doctorId, user }: { doctorId: string; user: AuthUser }) {
         className="flex flex-col gap-6"
         onSubmit={(e) => {
           e.preventDefault();
-          if (startsAt) book.mutate({ doctorId, startsAt, type, note: note.trim() || undefined });
+          if (startsAt) {
+            book.mutate({ doctorId, startsAt, type, note: note.trim() || undefined, shareAssessments: share });
+          }
         }}
       >
         <Card className="flex flex-col gap-4">
@@ -233,6 +236,21 @@ function Booking({ doctorId, user }: { doctorId: string; user: AuthUser }) {
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />
+          <label className="flex items-start gap-3 text-sm">
+            <input
+              type="checkbox"
+              checked={share}
+              onChange={(e) => setShare(e.target.checked)}
+              className="mt-0.5 size-4 accent-[var(--primary)]"
+            />
+            <span>
+              Share my self-assessment results with this doctor
+              <span className="block text-muted">
+                Helps them prepare. Only your scores and risk levels are shared, never your AI
+                chats. You can change this later.
+              </span>
+            </span>
+          </label>
         </Card>
 
         {book.error && <Alert>{book.error.message}</Alert>}

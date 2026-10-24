@@ -29,8 +29,14 @@ export const bookAppointmentSchema = z.object({
   startsAt: z.iso.datetime({ offset: true, error: 'Choose a time slot' }),
   type: z.enum(['ONLINE', 'OFFLINE'], { error: 'Choose online or in person' }),
   note: z.string().trim().max(500, { error: 'Keep the note under 500 characters' }).optional(),
+  /** Let this doctor see my self-assessment results. Off unless the patient opts in. */
+  shareAssessments: z.boolean().default(false),
 });
-export type BookAppointmentDto = z.infer<typeof bookAppointmentSchema>;
+export type BookAppointmentInput = z.input<typeof bookAppointmentSchema>;
+export type BookAppointmentDto = z.output<typeof bookAppointmentSchema>;
+
+export const shareAssessmentsSchema = z.object({ share: z.boolean() });
+export type ShareAssessmentsDto = z.infer<typeof shareAssessmentsSchema>;
 
 export const declineAppointmentSchema = z.object({
   reason: z.string().trim().min(3, { error: 'Give the patient a reason' }).max(500),
@@ -50,6 +56,7 @@ export interface AppointmentItem {
   startsAt: string;
   endsAt: string;
   patientNote: string | null;
+  shareAssessments: boolean;
   declineReason: string | null;
   cancelReason: string | null;
   cancelledBy: 'PATIENT' | 'DOCTOR' | 'SYSTEM' | null;
@@ -64,4 +71,6 @@ export interface AppointmentItem {
   patient: { id: string; name: string };
   /** The consultation payment, if one was started. */
   payment: { reference: string; status: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'REFUND_DUE' | 'REFUNDED'; amount: number } | null;
+  /** The patient's rating for this appointment, once given. */
+  review: { rating: number } | null;
 }

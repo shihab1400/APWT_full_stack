@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Subject, filter, map, type Observable } from 'rxjs';
 import type { NotificationItem, NotificationList, NotificationType } from '@mindease/shared';
 import { MailService } from '../mail/mail.service.js';
@@ -18,6 +18,7 @@ const LIST_LIMIT = 30;
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
   /** In-process fan-out to open streams. A multi-instance deploy would swap this for Redis pub/sub. */
   private readonly events = new Subject<{ userId: string; item: NotificationItem }>();
 
@@ -26,13 +27,21 @@ export class NotificationsService {
     private readonly mail: MailService,
   ) {}
 
-  /** Stores a notification for each user and pushes it to their open streams. */
+  /**
+   * Stores a notification for each user and pushes it to their open streams.
+   * Best effort: the action that triggered it has already happened, so a
+   * failure here (e.g. the user was just deleted) is logged, never thrown.
+   */
   async notify(userIds: string | string[], n: NewNotification): Promise<void> {
     const ids = [...new Set(Array.isArray(userIds) ? userIds : [userIds])];
     const { email, ...data } = n;
     for (const userId of ids) {
-      const row = await this.prisma.notification.create({ data: { userId, ...data } });
-      this.events.next({ userId, item: toItem(row) });
+      try {
+        const row = await this.prisma.notification.create({ data: { userId, ...data } });
+        this.events.next({ userId, item: toItem(row) });
+      } catch (err) {
+        this.logger.warn(`Could not notify ${userId} (${n.type}): ${String(err).slice(0, 200)}`);
+      }
     }
     if (email) {
       const users = await this.prisma.user.findMany({

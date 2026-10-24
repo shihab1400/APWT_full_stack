@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AppointmentItem } from "@mindease/shared";
+import { useState } from "react";
+import { REVIEW_COMMENT_MAX, type AppointmentItem, type PublicReview, type ReviewDto } from "@mindease/shared";
 import { AppShell } from "@/components/app-shell";
 import { Outcome, ReasonAction, StatusBadge, When } from "@/components/appointment-parts";
 import { formatBdt } from "@/components/doctor-card";
 import { PaymentBadge } from "@/components/payment-parts";
-import { Alert, ButtonLink, Card } from "@/components/ui";
+import { StarInput, Stars } from "@/components/stars";
+import { Alert, Button, ButtonLink, Card, TextArea } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useNow } from "@/lib/use-now";
 import { USER_NAV } from "../nav";
@@ -126,6 +128,8 @@ function AppointmentCard({ appointment: a, canCancel }: { appointment: Appointme
         </p>
       )}
       <Outcome appointment={a} />
+      {["REQUESTED", "ACCEPTED", "COMPLETED"].includes(a.status) && <ShareToggle appointment={a} />}
+      {a.status === "COMPLETED" && <Rating appointment={a} />}
       {cancel.error && <Alert>{cancel.error.message}</Alert>}
       {canCancel && (
         <div>
@@ -140,5 +144,91 @@ function AppointmentCard({ appointment: a, canCancel }: { appointment: Appointme
         </div>
       )}
     </Card>
+  );
+}
+
+function ShareToggle({ appointment: a }: { appointment: AppointmentItem }) {
+  const qc = useQueryClient();
+  const toggle = useMutation({
+    mutationFn: (share: boolean) =>
+      api<AppointmentItem>(`/appointments/${a.id}/sharing`, { method: "PATCH", body: { share } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["appointments"] }),
+  });
+  return (
+    <label className="flex items-center gap-2 text-sm text-muted">
+      <input
+        type="checkbox"
+        checked={a.shareAssessments}
+        disabled={toggle.isPending}
+        onChange={(e) => toggle.mutate(e.target.checked)}
+        className="size-4 accent-[var(--primary)]"
+      />
+      Share my self-assessment results with {a.doctor.name}
+    </label>
+  );
+}
+
+/** "Rate doctor" for a completed session; shown once, then replaced by the given rating. */
+function Rating({ appointment: a }: { appointment: AppointmentItem }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const submit = useMutation({
+    mutationFn: (dto: ReviewDto) =>
+      api<PublicReview>(`/appointments/${a.id}/review`, { method: "POST", body: dto }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["appointments"] }),
+  });
+
+  if (submit.isSuccess) {
+    return (
+      <p role="status" className="rounded-lg bg-primary-soft px-3 py-2 text-sm text-primary">
+        Thank you for your feedback. It helps other patients choose the right doctor.
+      </p>
+    );
+  }
+  if (a.review) {
+    return (
+      <p className="flex items-center gap-2 text-sm text-muted">
+        Your rating: <Stars rating={a.review.rating} />
+      </p>
+    );
+  }
+  if (!open) {
+    return (
+      <Button variant="secondary" className="w-fit" onClick={() => setOpen(true)}>
+        Rate doctor
+      </Button>
+    );
+  }
+  return (
+    <form
+      className="flex flex-col gap-3 rounded-lg border border-border p-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (rating) submit.mutate({ rating, comment: comment.trim() || undefined });
+      }}
+    >
+      <p className="text-sm font-medium">How was your session with {a.doctor.name}?</p>
+      <StarInput value={rating} onChange={setRating} />
+      <TextArea
+        id={`review-${a.id}`}
+        label="Comment (optional)"
+        hint="Shown on the doctor's profile as “Verified patient”, without your name."
+        rows={3}
+        maxLength={REVIEW_COMMENT_MAX}
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+      />
+      {submit.error && <Alert>{submit.error.message}</Alert>}
+      <div className="flex gap-2">
+        <Button type="submit" disabled={!rating || submit.isPending}>
+          {submit.isPending ? "Submitting…" : "Submit"}
+        </Button>
+        <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+          Not now
+        </Button>
+      </div>
+    </form>
   );
 }

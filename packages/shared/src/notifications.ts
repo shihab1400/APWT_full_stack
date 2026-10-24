@@ -13,6 +13,8 @@ export const NotificationType = {
   REFUND_DUE: 'REFUND_DUE',
   REFUND_SENT: 'REFUND_SENT',
   SUBSCRIPTION_ACTIVATED: 'SUBSCRIPTION_ACTIVATED',
+  REVIEW_RECEIVED: 'REVIEW_RECEIVED',
+  REVIEW_REPORTED: 'REVIEW_REPORTED',
 } as const;
 export type NotificationType = (typeof NotificationType)[keyof typeof NotificationType];
 

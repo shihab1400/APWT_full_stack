@@ -68,7 +68,7 @@ export const faqs: { category: string; question: string; answer: string }[] = [
     category: 'Privacy & Safety',
     question: 'Who can see my conversations and results?',
     answer:
-      "Your AI chats and assessment results are private to you. A doctor can only see the details you share for an appointment you've booked with them. Data is encrypted in transit and sensitive fields are encrypted at rest.",
+      "Your AI chats are private to you. A doctor you book sees your name, your booking and their own notes, and your self-assessment scores only if you choose to share them when booking. Reviews are shown without your name. Data is encrypted in transit and sensitive fields are encrypted at rest.",
   },
   {
     category: 'Privacy & Safety',

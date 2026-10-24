@@ -10,12 +10,13 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'node:crypto';
-import type {
-  AuthUser,
-  JwtPayload,
-  LoginDto,
-  RegisterDto,
-  SubscriptionTier,
+import {
+  ACCOUNT_SUSPENDED_MESSAGE,
+  type AuthUser,
+  type JwtPayload,
+  type LoginDto,
+  type RegisterDto,
+  type SubscriptionTier,
 } from '@mindease/shared';
 import { ENV, type Env } from '../config/env.js';
 import { MailService } from '../mail/mail.service.js';
@@ -77,7 +78,7 @@ export class AuthService {
     // Same message for unknown email and wrong password, so accounts can't be enumerated.
     const valid = user && (await bcrypt.compare(dto.password, user.passwordHash));
     if (!user || !valid) throw new UnauthorizedException('Invalid email or password');
-    if (user.status !== 'ACTIVE') throw new ForbiddenException('Account is deactivated');
+    if (user.status !== 'ACTIVE') throw new ForbiddenException(ACCOUNT_SUSPENDED_MESSAGE);
 
     return this.issueFor(user);
   }
@@ -98,7 +99,7 @@ export class AuthService {
       throw new UnauthorizedException('Session revoked, please log in again');
     }
     if (stored.expiresAt <= new Date()) throw new UnauthorizedException('Session expired');
-    if (stored.user.status !== 'ACTIVE') throw new ForbiddenException('Account is deactivated');
+    if (stored.user.status !== 'ACTIVE') throw new ForbiddenException(ACCOUNT_SUSPENDED_MESSAGE);
 
     await this.prisma.refreshToken.update({
       where: { id: stored.id },

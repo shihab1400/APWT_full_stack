@@ -415,7 +415,7 @@ describe('Doctors, scheduling & booking (e2e)', () => {
       const alert = await prisma.riskAlert.create({
         data: { userId: user.id, source: 'QUIZ', severity: 'HIGH' },
       });
-      await bookAndPay(user, new Date(monday11.getTime() + 7 * DAY_MS));
+      await bookAndPay(user, monday11); // freed by the cancellation above
       expect(await prisma.riskAlert.findUnique({ where: { id: alert.id } })).toMatchObject({ bookedDoctor: true });
     });
 

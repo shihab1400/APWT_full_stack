@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { AppointmentItem } from "@mindease/shared";
 import { AppShell } from "@/components/app-shell";
@@ -79,7 +80,9 @@ function AppointmentCard({ appointment: a }: { appointment: AppointmentItem }) {
   return (
     <Card className="flex flex-col gap-3 p-5">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <p className="font-medium">{a.patient.name}</p>
+        <Link href={`/doctor/patients/${a.patient.id}`} className="font-medium hover:underline">
+          {a.patient.name}
+        </Link>
         <StatusBadge status={a.status} />
       </div>
       <When appointment={a} />
