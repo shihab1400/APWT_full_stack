@@ -85,5 +85,13 @@ async function BookingAction({ doctorId }: { doctorId: string }) {
       </>
     );
   }
-  return <p className="rounded-lg bg-primary-soft px-3 py-2 text-sm text-primary">Online booking opens soon.</p>;
+  if (session.role === "DOCTOR" || session.role === "ADMIN") {
+    return <p className="text-xs text-muted">Patients book from their account.</p>;
+  }
+  return (
+    <>
+      <ButtonLink href={`/dashboard/book/${doctorId}`}>See times and book</ButtonLink>
+      <p className="text-xs text-muted">Booking is included with Premium.</p>
+    </>
+  );
 }

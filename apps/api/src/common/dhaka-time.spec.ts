@@ -1,4 +1,4 @@
-import { dhakaDay } from './usage-window.js';
+import { dhakaDay } from './dhaka-time.js';
 
 describe('dhakaDay', () => {
   it('starts at 18:00 UTC the previous day (midnight in Dhaka)', () => {

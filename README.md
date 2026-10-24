@@ -24,13 +24,13 @@ Requirements:
    ```sh
    pnpm install
    pnpm db:migrate     # apply migrations
-   pnpm db:seed        # admin (SEED_ADMIN_* in .env), hotlines, FAQs, articles, demo doctors
+   pnpm db:seed        # admin (SEED_ADMIN_* in .env), hotlines, FAQs, articles, demo doctors and patient
    pnpm dev            # web on :3000, api on :4000
    ```
 
 The browser only talks to `localhost:3000`. Next.js forwards `/api/*` to the API.
 
-Default admin: `admin@mindease.local` / `Admin12345`. Demo doctors (development only): `sarah.ahmed@demo.mindease.local`, `tanvir.hasan@demo.mindease.local` and `nusrat.jahan@demo.mindease.local`, all with password `Doctor12345`. Change these before seeding anywhere real.
+Default admin: `admin@mindease.local` / `Admin12345`. Demo doctors (development only): `sarah.ahmed@demo.mindease.local`, `tanvir.hasan@demo.mindease.local` and `nusrat.jahan@demo.mindease.local`, all with password `Doctor12345`, open Sunday–Thursday 10:00–13:00 and 15:00–18:00. Demo Premium patient (development only, so booking can be tried before payments exist): `patient@demo.mindease.local` / `Patient12345`. Change these before seeding anywhere real.
 
 ## Scripts (from the repo root)
 

@@ -5,7 +5,9 @@ import { refreshSession, toApiError } from "./api";
  * Incremental parser for Server-Sent Events. Chunks can split an event
  * anywhere, so text is buffered until a blank line ends each event.
  */
-export function createSseParser(onEvent: (e: ChatStreamEvent) => void) {
+export function createSseParser<E extends { event: string; data: unknown } = ChatStreamEvent>(
+  onEvent: (e: E) => void,
+) {
   let buffer = "";
   return (chunk: string) => {
     buffer += chunk.replace(/\r\n/g, "\n");
@@ -19,7 +21,7 @@ export function createSseParser(onEvent: (e: ChatStreamEvent) => void) {
         if (line.startsWith("event:")) event = line.slice(6).trim();
         else if (line.startsWith("data:")) data.push(line.slice(5).trimStart());
       }
-      if (data.length) onEvent({ event, data: JSON.parse(data.join("\n")) } as ChatStreamEvent);
+      if (data.length) onEvent({ event, data: JSON.parse(data.join("\n")) } as E);
     }
   };
 }

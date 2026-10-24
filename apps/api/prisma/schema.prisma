@@ -107,16 +107,24 @@ model DoctorProfile {
   bio             String?
   qualifications  String?
   experienceYears Int?
-  licenseUrl      String?
+  /// Address for in-person (OFFLINE) sessions; online-only when empty.
+  clinicAddress   String?
+  /// Storage key of the uploaded licence under UPLOAD_DIR; never served publicly.
+  licenseFile     String?
+  licenseMimeType String?
   fee             Decimal              @default(0) @db.Decimal(10, 2)
   verified        Boolean              @default(false)
   approvalStatus  DoctorApprovalStatus @default(PENDING)
+  /// Set when the doctor submits the profile for review; cleared on rejection.
+  submittedAt     DateTime?
+  reviewedAt      DateTime?
   rejectReason    String?
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
 
   user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   availability AvailabilitySlot[]
+  blocks       AvailabilityBlock[]
   appointments Appointment[]
   reviews      Review[]
   notes        ConsultationNote[]
@@ -124,19 +132,32 @@ model DoctorProfile {
   @@index([approvalStatus, verified])
 }
 
-/// Recurring weekly window, e.g. Monday 10:00–13:00.
+/// Recurring weekly open window in Dhaka time, e.g. Monday 10:00–13:00.
 model AvailabilitySlot {
   id          String   @id @default(uuid())
   doctorId    String
   dayOfWeek   Int // 0 = Sunday … 6 = Saturday
   startMinute Int // minutes from midnight
   endMinute   Int
-  blocked     Boolean  @default(false)
   createdAt   DateTime @default(now())
 
   doctor DoctorProfile @relation(fields: [doctorId], references: [id], onDelete: Cascade)
 
   @@index([doctorId, dayOfWeek])
+}
+
+/// A one-off period the doctor has blocked, e.g. Wednesday 14:00–16:00 next week.
+model AvailabilityBlock {
+  id        String   @id @default(uuid())
+  doctorId  String
+  startsAt  DateTime
+  endsAt    DateTime
+  reason    String?
+  createdAt DateTime @default(now())
+
+  doctor DoctorProfile @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId, startsAt])
 }
 
 enum AppointmentType {
@@ -161,7 +182,11 @@ model Appointment {
   status        AppointmentStatus @default(PENDING_PAYMENT)
   startsAt      DateTime
   endsAt        DateTime
+  /// What the patient would like to discuss, shown to the doctor.
+  patientNote   String?
   declineReason String?
+  cancelReason  String?
+  cancelledById String?
   reminderSent  Boolean           @default(false)
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt

@@ -14,7 +14,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { detectCrisis } from '../risk/crisis-detector.js';
 import { RiskService } from '../risk/risk.service.js';
 import { TierService } from '../subscriptions/tier.service.js';
-import { dhakaDay } from './usage-window.js';
+import { dhakaDay } from '../common/dhaka-time.js';
 
 /** How many earlier messages are sent to the model as context. */
 const HISTORY_TURNS = 20;

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { DASHBOARD_BY_ROLE, type AuthUser, type Role } from "@mindease/shared";
+import { NotificationBell } from "@/components/notification-bell";
 import { Button, Logo } from "@/components/ui";
 import { useLogout, useMe } from "@/lib/auth";
 
@@ -72,6 +73,7 @@ export function AppShell({
             ))}
           </nav>
           <div className="flex items-center gap-3">
+            <NotificationBell />
             <span className="hidden text-sm text-muted sm:inline">{user.name}</span>
             <Button variant="secondary" onClick={() => logout.mutate()} disabled={logout.isPending}>
               Log out

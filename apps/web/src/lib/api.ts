@@ -35,11 +35,13 @@ export async function api<T>(
   init: Omit<RequestInit, "body"> & { body?: unknown } = {},
 ): Promise<T> {
   const { body, headers, ...rest } = init;
+  // FormData (file uploads) sets its own multipart Content-Type with the boundary.
+  const isForm = body instanceof FormData;
   const send = () =>
     fetch(`/api${path}`, {
       ...rest,
-      headers: { "Content-Type": "application/json", ...headers },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: isForm ? headers : { "Content-Type": "application/json", ...headers },
+      body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
     });
 
   let res = await send();

@@ -86,6 +86,7 @@ export const demoDoctors = [
     qualifications: 'MBBS, FCPS (Psychiatry)',
     experienceYears: 9,
     fee: 1000,
+    clinicAddress: 'House 12, Road 5, Dhanmondi, Dhaka',
     bio: 'Works with adults experiencing anxiety, depression and sleep problems, combining medication review with practical coping plans.',
   },
   {
@@ -95,6 +96,7 @@ export const demoDoctors = [
     qualifications: 'MPhil (Clinical Psychology)',
     experienceYears: 6,
     fee: 800,
+    clinicAddress: 'Level 4, 22 Gulshan Avenue, Dhaka',
     bio: 'Uses cognitive behavioural therapy to help with stress, panic, and low mood. Comfortable working in Bangla and English.',
   },
   {
@@ -107,6 +109,18 @@ export const demoDoctors = [
     bio: 'Supports students and young professionals with academic pressure, relationships, and self-esteem.',
   },
 ];
+
+/** Weekly hours for every demo doctor, in Dhaka time (Sunday–Thursday working week). */
+export const demoWeeklyHours = [0, 1, 2, 3, 4].flatMap((dayOfWeek) => [
+  { dayOfWeek, startMinute: 10 * 60, endMinute: 13 * 60 },
+  { dayOfWeek, startMinute: 15 * 60, endMinute: 18 * 60 },
+]);
+
+export const demoPatient = {
+  email: 'patient@demo.mindease.local',
+  name: 'Demo Patient',
+  password: 'Patient12345',
+};
 
 export const blogPosts = [
   {

@@ -8,6 +8,8 @@ const envSchema = z.object({
   JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   REFRESH_TTL_DAYS: z.coerce.number().int().positive().default(7),
   WEB_ORIGIN: z.string().default('http://localhost:3000'),
+  /** Private uploads such as doctor licences. Relative paths resolve from the API folder. */
+  UPLOAD_DIR: z.string().default('uploads'),
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_MODEL: z.string().default('gemini-3.5-flash'),
   /** Comma-separated; tried in order when the primary model fails or is rate limited. */

@@ -90,7 +90,7 @@ Cross-cutting: global exception filter, Helmet, CORS allow-list, rate limiting (
 1. ✅ **Foundation (done 2026-10-24):** monorepo scaffold, local PostgreSQL database `mindease`, Prisma schema + migrations, `shared` package, auth + RBAC, CI (lint, typecheck, test).
 2. ✅ **Public + content (done 2026-10-24):** guest pages, blogs/FAQ/pricing/policies/hotlines, contact form.
 3. ✅ **Assessment + AI chat (done 2026-10-24):** quiz engine and scoring, Gemini streaming chat, daily cap, risk detection and alerts.
-4. **Doctors + booking:** registration, admin approval, availability, appointments, notifications and reminders.
+4. ✅ **Doctors + booking (done 2026-10-24):** registration, admin approval, availability, appointments, notifications and reminders.
 5. **Payments + subscription:** SSLCommerz sandbox, upgrade flow, fee cap, transaction rollback, admin ledger.
 6. **Doctor tools + admin:** consultation notes, earnings, reviews and moderation, user management, audit log, quiz CRUD.
 7. **Text messaging:** per-appointment patient–doctor chat (WebSocket), message history, unread badges.
@@ -192,3 +192,35 @@ Versions actually installed: Next.js 16.4, React 19.3, NestJS 12 (ESM, Vitest, o
   - `/dashboard/assessment/[id]`: take an assessment and see the result, with doctor cards and the crisis card when relevant.
 - **Hotlines:** 999 plus MindEase Emergency Service (01568978234, 24/7, free).
 - **Deferred to phase 6:** the admin Risk Alerts tab and the quiz/threshold editing screens (FR_3). The data and API pieces they need are already in place.
+
+## Phase 4 implementation notes (2026-10-24)
+- **Migration `doctors_and_booking`:**
+  - `DoctorProfile`: `clinicAddress`, `licenseFile` + `licenseMimeType` (replace `licenseUrl`), `submittedAt`, `reviewedAt`.
+  - `AvailabilitySlot.blocked` removed; one-off blocks live in the new `AvailabilityBlock` table.
+  - `Appointment`: `patientNote`, `cancelReason`, `cancelledById`.
+- **Doctor onboarding (FR_9, FR_1):**
+  - Statuses: `INCOMPLETE` → `SUBMITTED` → `APPROVED`, or `REJECTED` with a reason, then resubmit.
+  - Licence upload: PDF/PNG/JPG up to 5 MB. The type is checked from the file's first bytes, not the browser's claim. Files are stored privately under `UPLOAD_DIR` and only the doctor and admins can open them.
+  - A verified licence can't be replaced from the app.
+  - Admins see "Doctor approvals" (`/admin/doctors`). Approve and reject are audited (`DOCTOR_APPROVED`, `DOCTOR_REJECTED`) and notify the doctor.
+- **Email:** notifications marked as email (approval, rejection) are written to the API log until an email provider is configured.
+- **Scheduling (FR_10):**
+  - Weekly hours in Dhaka time on a 30-minute grid; sessions are 60 minutes.
+  - Doctors block single slots from a 14-day calendar or longer periods ("time off"). A block can't cover an existing request or booking.
+  - Patients can book from 1 hour ahead up to 14 days ahead.
+  - Booking outside the hours, in a block, or in a taken slot returns `409` with `code: SLOT_UNAVAILABLE` and the message "This time slot is not available".
+- **Booking (FR_8, FR_11):**
+  - Premium only (`403 PREMIUM_REQUIRED` for free users), checked against the database rather than the token.
+  - A booking is a `REQUESTED` appointment; the doctor confirms or declines with a reason. Patients cancel with an optional reason; doctors must give one.
+  - Double booking is prevented with a per-doctor PostgreSQL advisory lock inside the booking transaction. The e2e suite fires two simultaneous bookings and checks exactly one wins.
+  - In-person sessions are offered only when the doctor has a clinic address.
+  - A booking marks the patient's risk alerts as `bookedDoctor` (for the phase 6 Risk Alerts tab).
+  - Phase 5 will put payment between choosing a slot and the request reaching the doctor (`PENDING_PAYMENT` already holds the slot).
+- **Reminders:** a 1-minute in-process timer sends the 15-minute reminder to both sides once, and cancels requests still unanswered at their start time (patient notified).
+- **Notifications:**
+  - Stored in `Notification`. `GET /api/notifications/stream` pushes new ones over Server-Sent Events through the Next `/api` rewrite.
+  - Streams close after 10 minutes so the client reconnects through the auth guard (refreshing the token if needed).
+  - A bell in every dashboard header shows the unread count and refreshes related pages.
+  - Fan-out is in-process; running several API instances would need Redis pub/sub.
+- **Admin:** `/admin/appointments` lists every appointment with status, type and date-range filters (FR #21).
+- **Seed (development only):** demo doctors get Sunday–Thursday hours and two get clinic addresses; a Premium demo patient `patient@demo.mindease.local` / `Patient12345`.

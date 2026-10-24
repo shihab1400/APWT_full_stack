@@ -4,3 +4,7 @@ export * from './auth.js';
 export * from './content.js';
 export * from './assessment.js';
 export * from './chat.js';
+export * from './doctor.js';
+export * from './scheduling.js';
+export * from './appointments.js';
+export * from './notifications.js';

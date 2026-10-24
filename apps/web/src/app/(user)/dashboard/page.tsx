@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import type { AttemptHistoryItem, ChatUsage } from "@mindease/shared";
+import type { AppointmentItem, AttemptHistoryItem, ChatUsage } from "@mindease/shared";
 import { AppShell } from "@/components/app-shell";
 import { RiskBadge } from "@/components/risk-badge";
 import { Card } from "@/components/ui";
 import { api } from "@/lib/api";
+import { formatDateTime } from "@/lib/datetime";
+import { useNow } from "@/lib/use-now";
 import { USER_NAV } from "./nav";
 
 export default function UserDashboard() {
@@ -31,7 +33,7 @@ export default function UserDashboard() {
           <div className="grid gap-4 sm:grid-cols-3">
             <ChatCard />
             <AssessmentCard />
-            <Tile href="/doctors" title="Find a doctor" text="Browse verified professionals and their fees." />
+            <AppointmentsCard />
           </div>
         </div>
       )}
@@ -69,6 +71,27 @@ function AssessmentCard() {
         ) : undefined
       }
     />
+  );
+}
+
+function AppointmentsCard() {
+  const list = useQuery({
+    queryKey: ["appointments", "mine"],
+    queryFn: () => api<AppointmentItem[]>("/appointments"),
+  });
+  const now = useNow();
+  const next = list.data
+    ?.filter((a) => (a.status === "ACCEPTED" || a.status === "REQUESTED") && Date.parse(a.endsAt) > now)
+    .at(-1);
+  return next ? (
+    <Tile
+      href="/dashboard/appointments"
+      title="Next appointment"
+      text={`${next.doctor.name}, ${formatDateTime(next.startsAt)}`}
+      footer={next.status === "ACCEPTED" ? "Confirmed" : "Waiting for the doctor to confirm"}
+    />
+  ) : (
+    <Tile href="/doctors" title="Find a doctor" text="Browse verified professionals and book a session." />
   );
 }
 

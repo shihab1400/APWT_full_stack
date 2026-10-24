@@ -2,7 +2,15 @@ import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import bcrypt from 'bcryptjs';
 import { PrismaClient } from '../src/generated/prisma/client.js';
-import { blogPosts, demoDoctors, faqs, hotlines, quizzes } from './seed-content.js';
+import {
+  blogPosts,
+  demoDoctors,
+  demoPatient,
+  demoWeeklyHours,
+  faqs,
+  hotlines,
+  quizzes,
+} from './seed-content.js';
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
@@ -66,7 +74,7 @@ async function main() {
   if (process.env.NODE_ENV !== 'production') {
     const doctorPassword = await bcrypt.hash('Doctor12345', 12);
     for (const { email, name, ...profile } of demoDoctors) {
-      await prisma.user.upsert({
+      const user = await prisma.user.upsert({
         where: { email },
         update: {},
         create: {
@@ -77,12 +85,57 @@ async function main() {
           consentAt: new Date(),
           passwordHash: doctorPassword,
           doctorProfile: {
-            create: { ...profile, verified: true, approvalStatus: 'APPROVED' },
+            create: {
+              ...profile,
+              verified: true,
+              approvalStatus: 'APPROVED',
+              submittedAt: new Date(),
+              reviewedAt: new Date(),
+            },
           },
+        },
+        include: { doctorProfile: { include: { _count: { select: { availability: true } } } } },
+      });
+      const doctor = user.doctorProfile!;
+      // Fill in fields added after the first seed, without overwriting edits.
+      if (!doctor.clinicAddress && profile.clinicAddress) {
+        await prisma.doctorProfile.update({
+          where: { id: doctor.id },
+          data: { clinicAddress: profile.clinicAddress },
+        });
+      }
+      if (doctor._count.availability === 0) {
+        await prisma.availabilitySlot.createMany({
+          data: demoWeeklyHours.map((w) => ({ ...w, doctorId: doctor.id })),
+        });
+      }
+    }
+    console.log(`Seeded ${demoDoctors.length} demo doctors (password: Doctor12345)`);
+
+    // A Premium patient so booking can be tried before payments exist (phase 5).
+    const patient = await prisma.user.upsert({
+      where: { email: demoPatient.email },
+      update: {},
+      create: {
+        email: demoPatient.email,
+        name: demoPatient.name,
+        role: 'USER',
+        emailVerified: true,
+        consentAt: new Date(),
+        passwordHash: await bcrypt.hash(demoPatient.password, 12),
+      },
+    });
+    const paid = await prisma.subscription.findFirst({ where: { userId: patient.id, tier: 'PAID' } });
+    if (!paid) {
+      await prisma.subscription.create({
+        data: {
+          userId: patient.id,
+          tier: 'PAID',
+          endsAt: new Date(Date.now() + 365 * 86_400_000),
         },
       });
     }
-    console.log(`Seeded ${demoDoctors.length} demo doctors (password: Doctor12345)`);
+    console.log(`Seeded Premium demo patient ${demoPatient.email} (password: ${demoPatient.password})`);
   }
 
   console.log('Seeded hotlines, FAQs, articles and assessments');
