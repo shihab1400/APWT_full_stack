@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { AccountStatus } from '@mindease/shared';
+import { referenceOf } from '../contact/reference.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 const userListSelect = {
@@ -47,5 +48,30 @@ export class AdminService {
         : []),
     ]);
     return user;
+  }
+
+  async listContactMessages() {
+    const messages = await this.prisma.contactMessage.findMany({
+      orderBy: [{ handled: 'asc' }, { createdAt: 'desc' }],
+      take: 200,
+    });
+    return messages.map((m) => ({ ...m, reference: referenceOf(m.id) }));
+  }
+
+  async setContactHandled(actorId: string, id: string, handled: boolean) {
+    const exists = await this.prisma.contactMessage.findUnique({ where: { id } });
+    if (!exists) throw new NotFoundException('Message not found');
+    const [message] = await this.prisma.$transaction([
+      this.prisma.contactMessage.update({ where: { id }, data: { handled } }),
+      this.prisma.auditLog.create({
+        data: {
+          actorId,
+          action: handled ? 'CONTACT_HANDLED' : 'CONTACT_REOPENED',
+          targetType: 'ContactMessage',
+          targetId: id,
+        },
+      }),
+    ]);
+    return { ...message, reference: referenceOf(message.id) };
   }
 }

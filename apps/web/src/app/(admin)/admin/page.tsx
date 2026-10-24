@@ -5,8 +5,7 @@ import type { AccountStatus, Role } from "@mindease/shared";
 import { AppShell } from "@/components/app-shell";
 import { Alert, Button, Card } from "@/components/ui";
 import { api } from "@/lib/api";
-
-const NAV = [{ href: "/admin", label: "Users" }];
+import { ADMIN_NAV } from "./nav";
 
 interface AdminUserRow {
   id: string;
@@ -20,7 +19,7 @@ interface AdminUserRow {
 
 export default function AdminDashboard() {
   return (
-    <AppShell role="ADMIN" nav={NAV}>
+    <AppShell role="ADMIN" nav={ADMIN_NAV}>
       {(me) => <UsersTable currentUserId={me.id} />}
     </AppShell>
   );

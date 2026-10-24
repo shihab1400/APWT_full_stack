@@ -6,6 +6,9 @@ import { AuthModule } from './auth/auth.module.js';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard.js';
 import { RolesGuard } from './common/guards/roles.guard.js';
 import { ConfigModule } from './config/config.module.js';
+import { ContactModule } from './contact/contact.module.js';
+import { ContentModule } from './content/content.module.js';
+import { DoctorsModule } from './doctors/doctors.module.js';
 import { HealthController } from './health.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
@@ -16,6 +19,9 @@ import { PrismaModule } from './prisma/prisma.module.js';
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     AuthModule,
     AdminModule,
+    ContentModule,
+    DoctorsModule,
+    ContactModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -88,7 +88,7 @@ Cross-cutting: global exception filter, Helmet, CORS allow-list, rate limiting (
 
 ## Phases
 1. ✅ **Foundation (done 2026-10-24):** monorepo scaffold, local PostgreSQL database `mindease`, Prisma schema + migrations, `shared` package, auth + RBAC, CI (lint, typecheck, test).
-2. **Public + content:** guest pages, blogs/FAQ/pricing/policies/hotlines, contact form.
+2. ✅ **Public + content (done 2026-10-24):** guest pages, blogs/FAQ/pricing/policies/hotlines, contact form.
 3. **Assessment + AI chat:** quiz engine and scoring, Gemini streaming chat, daily cap, risk detection and alerts.
 4. **Doctors + booking:** registration, admin approval, availability, appointments, notifications and reminders.
 5. **Payments + subscription:** SSLCommerz sandbox, upgrade flow, fee cap, transaction rollback, admin ledger.
@@ -129,3 +129,32 @@ Versions actually installed: Next.js 16.4, React 19.3, NestJS 12 (ESM, Vitest, o
   - api unit (RolesGuard, AuthService), 16 tests.
   - api e2e against local Postgres (auth, RBAC 403s, refresh reuse, deactivation), 8 tests.
   - web proxy redirects, 12 tests.
+
+## Phase 2 implementation notes (2026-10-24)
+- **Migration `public_content`:**
+  - `Faq.category` and `Faq.published`.
+  - A new `Hotline` table.
+  - `BlogPost.category`.
+  - `DoctorProfile.experienceYears`.
+- **Public API, no login needed:**
+  - `GET /api/content/blogs[?category]`
+  - `GET /api/content/blogs/:slug`
+  - `GET /api/content/faqs` (grouped by category)
+  - `GET /api/content/hotlines`
+  - `GET /api/content/pricing` (plans plus the live doctor-fee range)
+  - `GET /api/doctors[?q&specialization]`
+  - `GET /api/doctors/specializations`
+  - `GET /api/doctors/:id`
+  - `POST /api/contact` (5 requests/min; returns a reference such as `ME-1A2B3C4D`)
+- **Public API details:**
+  - The content endpoints send `Cache-Control: public, max-age=60`.
+  - The doctor directory returns only approved, verified, active doctors, and only their public fields.
+- **Admin:** `GET /api/admin/contact-messages`, plus `PATCH /api/admin/contact-messages/:id` to mark a message handled (audited). The UI is at `/admin/inbox`.
+- **Web `(public)` route group:**
+  - Pages: home, `/doctors`, `/doctors/[id]`, `/resources`, `/resources/[slug]`, `/faq`, `/pricing`, `/emergency`, `/privacy`, `/terms`, `/contact`.
+  - Each page is a static shell plus a server component that streams in the data inside `<Suspense>`, so the build doesn't need the API.
+  - Filters are plain GET forms and the FAQ uses `<details>`, so neither needs client JavaScript (helps on low bandwidth).
+  - The hotlines fall back to a built-in 999 entry when the API is unreachable.
+- **Seed:** hotlines, 10 FAQs in 4 categories, 4 articles, and 3 fictional demo doctors (development only, password `Doctor12345`).
+- **Price:** the paid plan costs `PAID_PLAN_MONTHLY_PRICE` = 499 BDT/month (`packages/shared/src/constants.ts`). This is a placeholder for the team to confirm.
+- **Not yet true:** the privacy policy describes the target system. Encryption at rest and daily backups are delivered in phase 8.

@@ -12,6 +12,9 @@ const setStatusSchema = z.object({
 });
 type SetStatusDto = z.infer<typeof setStatusSchema>;
 
+const setHandledSchema = z.object({ handled: z.boolean() });
+type SetHandledDto = z.infer<typeof setHandledSchema>;
+
 @ApiTags('admin')
 @ApiCookieAuth(ACCESS_TOKEN_COOKIE)
 @Roles('ADMIN')
@@ -34,5 +37,22 @@ export class AdminController {
     @Body(new ZodValidationPipe(setStatusSchema)) dto: SetStatusDto,
   ) {
     return this.admin.setStatus(actor.id, id, dto.status, dto.reason);
+  }
+
+  @Get('contact-messages')
+  @ApiOperation({ summary: 'Support inbox from the public contact form' })
+  listContactMessages() {
+    return this.admin.listContactMessages();
+  }
+
+  @Patch('contact-messages/:id')
+  @ApiOperation({ summary: 'Mark a support message handled or open' })
+  @ApiBody({ schema: openApiSchema(setHandledSchema) })
+  setHandled(
+    @CurrentUser() actor: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(setHandledSchema)) dto: SetHandledDto,
+  ) {
+    return this.admin.setContactHandled(actor.id, id, dto.handled);
   }
 }
