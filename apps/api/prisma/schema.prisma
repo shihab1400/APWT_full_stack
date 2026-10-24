@@ -1,0 +1,442 @@
+// MindEase Oasis data model. Connection URL lives in prisma.config.ts.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────── Accounts & auth ─────────────
+
+enum Role {
+  USER
+  DOCTOR
+  ADMIN
+}
+
+enum AccountStatus {
+  ACTIVE
+  DEACTIVATED
+}
+
+enum SubscriptionTier {
+  FREE
+  PAID
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+model User {
+  id                     String        @id @default(uuid())
+  email                  String        @unique
+  passwordHash           String
+  name                   String
+  role                   Role          @default(USER)
+  status                 AccountStatus @default(ACTIVE)
+  emailVerified          Boolean       @default(false)
+  emailVerificationToken String?       @unique
+  consentAt              DateTime?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+
+  refreshTokens      RefreshToken[]
+  subscriptions      Subscription[]
+  doctorProfile      DoctorProfile?
+  chatSessions       ChatSession[]
+  quizAttempts       QuizAttempt[]
+  riskAlerts         RiskAlert[]
+  appointments       Appointment[]         @relation("PatientAppointments")
+  reviews            Review[]
+  notifications      Notification[]
+  payments           Payment[]
+  sentMessages       ConsultationMessage[]
+  auditLogs          AuditLog[]            @relation("AuditActor")
+  blogPosts          BlogPost[]
+
+  @@index([role])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Subscription {
+  id        String             @id @default(uuid())
+  userId    String
+  tier      SubscriptionTier
+  status    SubscriptionStatus @default(ACTIVE)
+  startsAt  DateTime           @default(now())
+  endsAt    DateTime?
+  createdAt DateTime           @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments Payment[]
+
+  @@index([userId, status])
+}
+
+// ───────────── Doctors & scheduling ─────────────
+
+enum DoctorApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model DoctorProfile {
+  id             String               @id @default(uuid())
+  userId         String               @unique
+  specialization String?
+  bio            String?
+  qualifications String?
+  licenseUrl     String?
+  fee            Decimal              @default(0) @db.Decimal(10, 2)
+  verified       Boolean              @default(false)
+  approvalStatus DoctorApprovalStatus @default(PENDING)
+  rejectReason   String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  availability AvailabilitySlot[]
+  appointments Appointment[]
+  reviews      Review[]
+  notes        ConsultationNote[]
+
+  @@index([approvalStatus, verified])
+}
+
+/// Recurring weekly window, e.g. Monday 10:00–13:00.
+model AvailabilitySlot {
+  id          String   @id @default(uuid())
+  doctorId    String
+  dayOfWeek   Int // 0 = Sunday … 6 = Saturday
+  startMinute Int // minutes from midnight
+  endMinute   Int
+  blocked     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  doctor DoctorProfile @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId, dayOfWeek])
+}
+
+enum AppointmentType {
+  ONLINE // text chat consultation
+  OFFLINE // in person
+}
+
+enum AppointmentStatus {
+  PENDING_PAYMENT
+  REQUESTED
+  ACCEPTED
+  DECLINED
+  CANCELLED
+  COMPLETED
+}
+
+model Appointment {
+  id            String            @id @default(uuid())
+  patientId     String
+  doctorId      String
+  type          AppointmentType
+  status        AppointmentStatus @default(PENDING_PAYMENT)
+  startsAt      DateTime
+  endsAt        DateTime
+  declineReason String?
+  reminderSent  Boolean           @default(false)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  patient  User                  @relation("PatientAppointments", fields: [patientId], references: [id])
+  doctor   DoctorProfile         @relation(fields: [doctorId], references: [id])
+  payment  Payment?
+  notes    ConsultationNote[]
+  messages ConsultationMessage[]
+  review   Review?
+
+  @@index([doctorId, startsAt])
+  @@index([patientId, startsAt])
+  @@index([status])
+}
+
+// ───────────── Payments ─────────────
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentPurpose {
+  APPOINTMENT
+  SUBSCRIPTION
+}
+
+model Payment {
+  id             String         @id @default(uuid())
+  userId         String
+  purpose        PaymentPurpose
+  appointmentId  String?        @unique
+  subscriptionId String?
+  amount         Decimal        @db.Decimal(10, 2)
+  currency       String         @default("BDT")
+  status         PaymentStatus  @default(PENDING)
+  provider       String // e.g. "sslcommerz"
+  gatewayTxnId   String?        @unique
+  failureReason  String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id])
+  appointment  Appointment?  @relation(fields: [appointmentId], references: [id])
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+
+  @@index([status, createdAt])
+}
+
+// ───────────── AI chat ─────────────
+
+enum ChatRole {
+  USER
+  ASSISTANT
+}
+
+model ChatSession {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  @@index([userId, updatedAt])
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  sessionId String
+  role      ChatRole
+  content   String // encrypted at rest (phase 8)
+  flagged   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+}
+
+// ───────────── Assessment & risk ─────────────
+
+enum RiskLevel {
+  LOW
+  MODERATE
+  HIGH
+}
+
+model Quiz {
+  id            String   @id @default(uuid())
+  title         String
+  description   String?
+  /// Scores >= this value are treated as high risk.
+  highRiskScore Int
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+}
+
+model QuizQuestion {
+  id      String @id @default(uuid())
+  quizId  String
+  order   Int
+  text    String
+  /// [{ "label": "Not at all", "score": 0 }, …]
+  options Json
+
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@unique([quizId, order])
+}
+
+model QuizAttempt {
+  id        String    @id @default(uuid())
+  quizId    String
+  userId    String
+  answers   Json
+  score     Int
+  riskLevel RiskLevel
+  createdAt DateTime  @default(now())
+
+  quiz Quiz @relation(fields: [quizId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+enum RiskSource {
+  QUIZ
+  CHAT
+}
+
+model RiskAlert {
+  id           String     @id @default(uuid())
+  userId       String
+  source       RiskSource
+  severity     RiskLevel
+  detail       String?
+  bookedDoctor Boolean    @default(false)
+  followedUp   Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([severity, followedUp])
+}
+
+// ───────────── Consultations ─────────────
+
+model ConsultationNote {
+  id            String   @id @default(uuid())
+  appointmentId String
+  doctorId      String
+  body          String // encrypted at rest (phase 8)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  appointment Appointment   @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  doctor      DoctorProfile @relation(fields: [doctorId], references: [id])
+
+  @@index([appointmentId])
+}
+
+/// Patient ↔ doctor text messages for an ONLINE appointment.
+model ConsultationMessage {
+  id            String    @id @default(uuid())
+  appointmentId String
+  senderId      String
+  body          String
+  readAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  sender      User        @relation(fields: [senderId], references: [id])
+
+  @@index([appointmentId, createdAt])
+}
+
+// ───────────── Reviews ─────────────
+
+enum ReviewStatus {
+  VISIBLE
+  FLAGGED
+  HIDDEN
+}
+
+model Review {
+  id            String       @id @default(uuid())
+  appointmentId String       @unique
+  userId        String
+  doctorId      String
+  rating        Int // 1–5
+  comment       String?
+  status        ReviewStatus @default(VISIBLE)
+  createdAt     DateTime     @default(now())
+
+  appointment Appointment   @relation(fields: [appointmentId], references: [id])
+  user        User          @relation(fields: [userId], references: [id])
+  doctor      DoctorProfile @relation(fields: [doctorId], references: [id])
+
+  @@index([doctorId, status])
+}
+
+// ───────────── Notifications ─────────────
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  type      String
+  title     String
+  body      String?
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}
+
+// ───────────── Public content ─────────────
+
+model BlogPost {
+  id          String    @id @default(uuid())
+  slug        String    @unique
+  title       String
+  excerpt     String?
+  body        String
+  authorId    String?
+  published   Boolean   @default(false)
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+}
+
+model Faq {
+  id       String @id @default(uuid())
+  question String
+  answer   String
+  order    Int    @default(0)
+}
+
+model ContactMessage {
+  id        String   @id @default(uuid())
+  name      String
+  email     String
+  subject   String?
+  message   String
+  handled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+// ───────────── Admin ─────────────
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String
+  action     String
+  targetType String?
+  targetId   String?
+  reason     String?
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  actor User @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([actorId, createdAt])
+  @@index([targetType, targetId])
+}

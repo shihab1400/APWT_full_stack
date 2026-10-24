@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+/* Calm, low-contrast-fatigue palette: sage/teal primary on warm off-white. */
+:root {
+  --background: #f7f8f6;
+  --surface: #ffffff;
+  --foreground: #1f2a2a;
+  --muted: #5d6b6a;
+  --border: #dfe5e2;
+  --primary: #2f7d73;
+  --primary-hover: #276a61;
+  --primary-soft: #e3f1ee;
+  --danger: #b4443c;
+  --danger-soft: #fbeceb;
+  --warning-soft: #fdf4e3;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #121817;
+    --surface: #1a2221;
+    --foreground: #e6ecea;
+    --muted: #9aa8a6;
+    --border: #2b3634;
+    --primary: #5bb3a7;
+    --primary-hover: #74c2b7;
+    --primary-soft: #1d3330;
+    --danger: #e0786f;
+    --danger-soft: #3a2220;
+    --warning-soft: #3a3020;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warning-soft: var(--warning-soft);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
