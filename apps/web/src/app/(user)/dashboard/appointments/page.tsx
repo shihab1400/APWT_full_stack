@@ -128,6 +128,11 @@ function AppointmentCard({ appointment: a, canCancel }: { appointment: Appointme
         </p>
       )}
       <Outcome appointment={a} />
+      {a.type === "ONLINE" && (a.status === "ACCEPTED" || a.status === "COMPLETED") && (
+        <ButtonLink href={`/dashboard/messages?appointment=${a.id}`} variant="secondary" className="w-fit">
+          {a.status === "ACCEPTED" ? "Open chat" : "View chat history"}
+        </ButtonLink>
+      )}
       {["REQUESTED", "ACCEPTED", "COMPLETED"].includes(a.status) && <ShareToggle appointment={a} />}
       {a.status === "COMPLETED" && <Rating appointment={a} />}
       {cancel.error && <Alert>{cancel.error.message}</Alert>}

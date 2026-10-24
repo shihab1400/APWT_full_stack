@@ -61,7 +61,7 @@ export class NotificationsController {
     // Subscribe before counting so nothing created in between is missed.
     const sub = this.notifications
       .stream(user.id)
-      .subscribe((item) => emit({ event: 'notification', data: item }));
+      .subscribe(emit);
     const heartbeat = setInterval(() => !res.writableEnded && res.write(': ping\n\n'), HEARTBEAT_MS);
     const close = () => {
       clearInterval(heartbeat);

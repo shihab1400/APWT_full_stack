@@ -93,7 +93,7 @@ Cross-cutting: global exception filter, Helmet, CORS allow-list, rate limiting (
 4. ✅ **Doctors + booking (done 2026-10-24):** registration, admin approval, availability, appointments, notifications and reminders.
 5. ✅ **Payments + subscription (done 2026-10-24):** SSLCommerz sandbox, upgrade flow, fee cap, transaction rollback, admin ledger.
 6. ✅ **Doctor tools + admin (done 2026-10-25):** consultation notes, earnings, reviews and moderation, user management, audit log, quiz CRUD.
-7. **Text messaging:** per-appointment patient–doctor chat (WebSocket), message history, unread badges.
+7. ✅ **Text messaging (done 2026-10-25):** per-appointment patient–doctor chat (WebSocket), message history, unread badges.
 8. **Hardening:** encryption at rest, rate limits, tests, performance pass, deployment (Vercel/Render or a VPS), daily `pg_dump` backup job.
 
 ## Testing (aligned with the PDF's levels)
@@ -286,3 +286,13 @@ Versions actually installed: Next.js 16.4, React 19.3, NestJS 12 (ESM, Vitest, o
   - **Audit log (FR #24):** time, admin ID and name, action, target, reason and details, filterable by action and dates.
   - **Users (FR_2):** search by name or email, filter by role and status; deactivation asks for a reason in an inline box. A deactivated login shows "Account suspended…".
 - **Robustness fix:** notification delivery is best effort. A failure (e.g. the recipient was just deleted) is logged and no longer turns a completed action into a 500.
+
+## Phase 7 implementation notes (2026-10-25)
+- **Migration `consultation_chat`:** `ConsultationMessage.flagged` and `RiskSource.CONSULTATION`.
+- **Access:** chats exist only for ONLINE appointments that are ACCEPTED or COMPLETED. Only the patient and that doctor can read or write; everyone else, admins included, gets 404/403.
+- **Window:** opens 15 minutes before the start and closes 1 hour after the scheduled end (`chat-window.ts`). Outside it, or once COMPLETED, the chat is read-only (409 on send).
+- **Live delivery:** `message` and `read` events go over the existing notification SSE stream (`NotificationsService.push`), measured at ~170 ms through the Next proxy. Messages aren't stored as notifications.
+- **Unread counts:** a nav badge plus per-chat counts. Opening a chat marks incoming messages read and sends a read receipt; the sender sees "Seen".
+- **Safety:** crisis language in a patient message sets `flagged`, raises a HIGH `RiskAlert` (source CONSULTATION), shows the patient the hotline card, and shows the doctor a marker on that message.
+- **Reminders:** the 15-minute reminder for an online session links straight to the chat.
+- **Web:** `/dashboard/messages` and `/doctor/messages` (conversation list and thread, Enter to send), plus "Open chat" on appointment cards.

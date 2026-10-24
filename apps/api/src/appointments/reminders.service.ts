@@ -76,19 +76,20 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
       if (!count) continue;
       const minutes = Math.max(1, Math.round((a.startsAt.getTime() - now.getTime()) / 60_000));
       const when = `${APPOINTMENT_TYPE_LABEL[a.type]} · ${formatDhaka(a.startsAt)}`;
+      const online = a.type === 'ONLINE';
       await this.notifications.notify(a.patientId, {
         type: 'APPOINTMENT_REMINDER',
         title: `Your session with ${a.doctor.user.name} starts in ${minutes} minutes`,
-        body: when,
+        body: online ? `${when}. Open the chat to join.` : when,
         email: true,
-        link: PATIENT_LINK,
+        link: online ? `/dashboard/messages?appointment=${a.id}` : PATIENT_LINK,
       });
       await this.notifications.notify(a.doctor.userId, {
         type: 'APPOINTMENT_REMINDER',
         title: `Session with ${a.patient.name} starts in ${minutes} minutes`,
-        body: when,
+        body: online ? `${when}. Open the chat to join.` : when,
         email: true,
-        link: DOCTOR_LINK,
+        link: online ? `/doctor/messages?appointment=${a.id}` : DOCTOR_LINK,
       });
       sent++;
     }

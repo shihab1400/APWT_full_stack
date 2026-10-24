@@ -1,3 +1,5 @@
+import type { ConsultationMessageItem } from './messaging.js';
+
 export const NotificationType = {
   DOCTOR_SUBMITTED: 'DOCTOR_SUBMITTED',
   DOCTOR_APPROVED: 'DOCTOR_APPROVED',
@@ -37,4 +39,8 @@ export interface NotificationList {
 /** Events on GET /api/notifications/stream (Server-Sent Events). */
 export type NotificationStreamEvent =
   | { event: 'ready'; data: { unreadCount: number } }
-  | { event: 'notification'; data: NotificationItem };
+  | { event: 'notification'; data: NotificationItem }
+  /** A consultation chat message to or from me. */
+  | { event: 'message'; data: ConsultationMessageItem }
+  /** The other side read my messages in a consultation. */
+  | { event: 'read'; data: { appointmentId: string; readerId: string; readAt: string } };

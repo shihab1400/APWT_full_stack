@@ -5,7 +5,7 @@ import type { RiskLevel } from './assessment.js';
 
 export interface RiskAlertItem {
   id: string;
-  source: 'QUIZ' | 'CHAT';
+  source: 'QUIZ' | 'CHAT' | 'CONSULTATION';
   severity: RiskLevel;
   detail: string | null;
   /** The user went on to book a doctor after the alert. */

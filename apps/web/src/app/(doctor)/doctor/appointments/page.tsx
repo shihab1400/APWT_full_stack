@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { AppointmentItem } from "@mindease/shared";
 import { AppShell } from "@/components/app-shell";
 import { Outcome, ReasonAction, StatusBadge, When } from "@/components/appointment-parts";
-import { Alert, Button, Card } from "@/components/ui";
+import { Alert, Button, ButtonLink, Card } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useNow } from "@/lib/use-now";
 import { DOCTOR_NAV } from "../nav";
@@ -109,6 +109,11 @@ function AppointmentCard({ appointment: a }: { appointment: AppointmentItem }) {
             onConfirm={(reason) => act.mutate({ action: "decline", reason })}
           />
         </div>
+      )}
+      {a.type === "ONLINE" && (a.status === "ACCEPTED" || a.status === "COMPLETED") && (
+        <ButtonLink href={`/doctor/messages?appointment=${a.id}`} variant="secondary" className="w-fit">
+          {a.status === "ACCEPTED" ? "Open chat" : "View chat history"}
+        </ButtonLink>
       )}
       {a.status === "ACCEPTED" && !started && (
         <div>

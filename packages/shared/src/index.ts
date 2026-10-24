@@ -12,3 +12,4 @@ export * from './payments.js';
 export * from './reviews.js';
 export * from './consultations.js';
 export * from './admin.js';
+export * from './messaging.js';

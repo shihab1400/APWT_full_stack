@@ -39,6 +39,12 @@ function useNotificationStream() {
       if (e.event === "ready") {
         // Catch up on anything missed while disconnected.
         void qc.invalidateQueries({ queryKey: notificationsKey });
+        void qc.invalidateQueries({ queryKey: ["consultations"] });
+        return;
+      }
+      if (e.event === "message" || e.event === "read") {
+        // Open chats refetch (which also marks incoming messages read); lists and badges update.
+        void qc.invalidateQueries({ queryKey: ["consultations"] });
         return;
       }
       qc.setQueryData<NotificationList>(notificationsKey, (old) =>

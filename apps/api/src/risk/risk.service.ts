@@ -11,7 +11,7 @@ export class RiskService {
   /** Records a risk alert for the admin "Risk Alerts" view. */
   async raise(alert: {
     userId: string;
-    source: 'QUIZ' | 'CHAT';
+    source: 'QUIZ' | 'CHAT' | 'CONSULTATION';
     severity: RiskLevel;
     sourceId?: string;
     detail?: string;

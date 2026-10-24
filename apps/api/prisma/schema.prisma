@@ -349,6 +349,8 @@ model QuizAttempt {
 enum RiskSource {
   QUIZ
   CHAT
+  /// Patient message in a doctor consultation chat.
+  CONSULTATION
 }
 
 model RiskAlert {
@@ -394,6 +396,8 @@ model ConsultationMessage {
   senderId      String
   body          String
   readAt        DateTime?
+  /// Crisis language detected in a patient's message.
+  flagged       Boolean   @default(false)
   createdAt     DateTime  @default(now())
 
   appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)

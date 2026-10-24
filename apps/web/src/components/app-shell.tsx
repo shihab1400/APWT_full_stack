@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { DASHBOARD_BY_ROLE, type AuthUser, type Role } from "@mindease/shared";
+import { UnreadBadge } from "@/components/consultations";
 import { NotificationBell } from "@/components/notification-bell";
 import { Button, Logo } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -38,6 +39,8 @@ function VerifyEmailBanner({ email }: { email: string }) {
 export interface NavItem {
   href: string;
   label: string;
+  /** Show the unread consultation message count. */
+  badge?: "messages";
 }
 
 /**
@@ -96,6 +99,7 @@ export function AppShell({
                 }`}
               >
                 {item.label}
+                {item.badge === "messages" && <UnreadBadge />}
               </Link>
             ))}
           </nav>

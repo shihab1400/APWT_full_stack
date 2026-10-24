@@ -1,6 +1,11 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Subject, filter, map, type Observable } from 'rxjs';
-import type { NotificationItem, NotificationList, NotificationType } from '@mindease/shared';
+import type {
+  NotificationItem,
+  NotificationList,
+  NotificationStreamEvent,
+  NotificationType,
+} from '@mindease/shared';
 import { MailService } from '../mail/mail.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { Notification } from '../generated/prisma/client.js';
@@ -20,7 +25,7 @@ const LIST_LIMIT = 30;
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
   /** In-process fan-out to open streams. A multi-instance deploy would swap this for Redis pub/sub. */
-  private readonly events = new Subject<{ userId: string; item: NotificationItem }>();
+  private readonly events = new Subject<{ userId: string; event: NotificationStreamEvent }>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -38,7 +43,7 @@ export class NotificationsService {
     for (const userId of ids) {
       try {
         const row = await this.prisma.notification.create({ data: { userId, ...data } });
-        this.events.next({ userId, item: toItem(row) });
+        this.push(userId, { event: 'notification', data: toItem(row) });
       } catch (err) {
         this.logger.warn(`Could not notify ${userId} (${n.type}): ${String(err).slice(0, 200)}`);
       }
@@ -71,10 +76,15 @@ export class NotificationsService {
     );
   }
 
-  stream(userId: string): Observable<NotificationItem> {
+  /** Sends a live event to the user's open streams without storing anything. */
+  push(userId: string, event: NotificationStreamEvent): void {
+    this.events.next({ userId, event });
+  }
+
+  stream(userId: string): Observable<NotificationStreamEvent> {
     return this.events.pipe(
       filter((e) => e.userId === userId),
-      map((e) => e.item),
+      map((e) => e.event),
     );
   }
 
