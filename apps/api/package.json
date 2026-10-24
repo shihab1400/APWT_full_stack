@@ -25,6 +25,7 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@google/genai": "2.31.0",
     "@mindease/shared": "workspace:*",
     "@nestjs/common": "^12.0.1",
     "@nestjs/core": "^12.0.1",

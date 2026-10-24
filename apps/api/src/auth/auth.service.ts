@@ -19,6 +19,7 @@ import type {
 } from '@mindease/shared';
 import { ENV, type Env } from '../config/env.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { TierService } from '../subscriptions/tier.service.js';
 import type { User } from '../generated/prisma/client.js';
 
 const BCRYPT_ROUNDS = 12;
@@ -43,6 +44,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly tiers: TierService,
     @Inject(ENV) private readonly env: Env,
   ) {}
 
@@ -127,11 +129,11 @@ export class AuthService {
   async me(userId: string): Promise<AuthUser> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException('Not authenticated');
-    return this.toAuthUser(user, await this.tierOf(user));
+    return this.toAuthUser(user, await this.tiers.tierOf(user));
   }
 
   private async issueFor(user: User): Promise<AuthResult> {
-    const tier = await this.tierOf(user);
+    const tier = await this.tiers.tierOf(user);
     const payload: JwtPayload = { sub: user.id, role: user.role, tier };
     const accessToken = await this.jwt.signAsync(payload);
 
@@ -152,22 +154,6 @@ export class AuthService {
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
-  }
-
-  private async tierOf(user: User): Promise<SubscriptionTier> {
-    if (user.role !== 'USER') return 'FREE';
-    const now = new Date();
-    const paid = await this.prisma.subscription.findFirst({
-      where: {
-        userId: user.id,
-        tier: 'PAID',
-        status: 'ACTIVE',
-        startsAt: { lte: now },
-        OR: [{ endsAt: null }, { endsAt: { gt: now } }],
-      },
-      select: { id: true },
-    });
-    return paid ? 'PAID' : 'FREE';
   }
 
   private toAuthUser(user: User, tier: SubscriptionTier): AuthUser {

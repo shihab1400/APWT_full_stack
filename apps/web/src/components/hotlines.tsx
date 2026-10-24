@@ -1,16 +1,8 @@
 import type { Hotline } from "@mindease/shared";
+import { FALLBACK_HOTLINES } from "@/lib/fallback-hotlines";
 import { serverApi } from "@/lib/server-api";
 
-/** Always shown, even if the API is unreachable: emergency info must never disappear. */
-export const FALLBACK_HOTLINES: Hotline[] = [
-  {
-    id: "fallback-999",
-    name: "National Emergency Service",
-    number: "999",
-    description: "Police, fire and ambulance. Call if you or someone else is in immediate danger.",
-    availability: "24/7, free",
-  },
-];
+export { FALLBACK_HOTLINES };
 
 export async function loadHotlines(): Promise<Hotline[]> {
   try {

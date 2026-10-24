@@ -37,6 +37,11 @@ export function AppShell({
     else if (user.role !== role) router.replace(DASHBOARD_BY_ROLE[user.role]);
   }, [user, isPending, role, router, pathname]);
 
+  // Longest matching prefix wins, so /dashboard/chat highlights "AI companion", not "Overview".
+  const activeHref = nav
+    .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+
   if (isPending || !user || user.role !== role) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-muted" aria-live="polite">
@@ -55,9 +60,9 @@ export function AppShell({
               <Link
                 key={item.href}
                 href={item.href}
-                aria-current={pathname === item.href ? "page" : undefined}
+                aria-current={activeHref === item.href ? "page" : undefined}
                 className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
-                  pathname === item.href
+                  activeHref === item.href
                     ? "bg-primary-soft font-medium text-primary"
                     : "text-muted hover:text-foreground"
                 }`}

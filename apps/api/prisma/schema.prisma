@@ -256,12 +256,15 @@ enum RiskLevel {
 }
 
 model Quiz {
-  id            String   @id @default(uuid())
-  title         String
-  description   String?
-  /// Scores >= this value are treated as high risk.
-  highRiskScore Int
-  active        Boolean  @default(true)
+  id                String   @id @default(uuid())
+  slug              String   @unique
+  title             String
+  description       String?
+  /// Scores >= this value are treated as moderate risk.
+  moderateRiskScore Int
+  /// Scores >= this value are treated as high risk and trigger a doctor recommendation.
+  highRiskScore     Int
+  active            Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -275,7 +278,9 @@ model QuizQuestion {
   order   Int
   text    String
   /// [{ "label": "Not at all", "score": 0 }, …]
-  options Json
+  options  Json
+  /// Any non-zero answer makes the attempt HIGH risk regardless of total (e.g. self-harm item).
+  critical Boolean @default(false)
 
   quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
 
@@ -288,7 +293,10 @@ model QuizAttempt {
   userId    String
   answers   Json
   score     Int
+  maxScore  Int
   riskLevel RiskLevel
+  /// A critical question was answered above zero.
+  critical  Boolean   @default(false)
   createdAt DateTime  @default(now())
 
   quiz Quiz @relation(fields: [quizId], references: [id])
@@ -307,6 +315,8 @@ model RiskAlert {
   userId       String
   source       RiskSource
   severity     RiskLevel
+  /// QuizAttempt id or ChatMessage id that raised the alert.
+  sourceId     String?
   detail       String?
   bookedDoctor Boolean    @default(false)
   followedUp   Boolean    @default(false)

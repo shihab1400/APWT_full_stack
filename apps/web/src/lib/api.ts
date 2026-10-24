@@ -20,7 +20,7 @@ const NO_REFRESH = ["/auth/login", "/auth/register", "/auth/refresh", "/auth/log
 let refreshing: Promise<boolean> | null = null;
 
 /** One refresh at a time, shared by every request that hit a 401 meanwhile. */
-function refreshSession(): Promise<boolean> {
+export function refreshSession(): Promise<boolean> {
   refreshing ??= fetch("/api/auth/refresh", { method: "POST" })
     .then((res) => res.ok)
     .catch(() => false)
@@ -48,13 +48,16 @@ export async function api<T>(
   }
 
   if (res.status === 204) return undefined as T;
+  if (!res.ok) throw await toApiError(res);
+  return (await res.json()) as T;
+}
+
+export async function toApiError(res: Response): Promise<ApiError> {
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new ApiError(res.status, {
-      statusCode: res.status,
-      message: data.message ?? res.statusText,
-      errors: data.errors,
-    });
-  }
-  return data as T;
+  return new ApiError(res.status, {
+    statusCode: res.status,
+    message: data.message ?? res.statusText,
+    code: data.code,
+    errors: data.errors,
+  });
 }

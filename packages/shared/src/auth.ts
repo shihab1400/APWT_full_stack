@@ -45,5 +45,7 @@ export interface JwtPayload {
 export interface ApiErrorBody {
   statusCode: number;
   message: string;
+  /** Machine-readable reason, e.g. CHAT_LIMIT_REACHED. */
+  code?: string;
   errors?: Record<string, string[]>;
 }

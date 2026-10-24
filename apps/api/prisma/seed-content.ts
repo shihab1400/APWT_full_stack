@@ -7,6 +7,12 @@ export const hotlines = [
     description: 'Police, fire and ambulance. Call if you or someone else is in immediate danger.',
     availability: '24/7, free',
   },
+  {
+    name: 'MindEase Emergency Service',
+    number: '01568978234',
+    description: 'Talk to the MindEase crisis support team if you are struggling and need help now.',
+    availability: '24/7, free',
+  },
 ];
 
 export const faqs: { category: string; question: string; answer: string }[] = [
@@ -215,5 +221,53 @@ Psychiatrists, psychologists and counsellors can help you understand what is hap
 ## If you are in crisis
 
 If you are thinking about harming yourself or feel unable to stay safe, call 999 or go to the nearest hospital emergency department now. You deserve support straight away.`,
+  },
+];
+
+// PHQ-9 and GAD-7 are free-to-use screening questionnaires (developed by
+// Drs. Spitzer, Williams, Kroenke and colleagues; no permission required).
+const FREQUENCY = [
+  { label: 'Not at all', score: 0 },
+  { label: 'Several days', score: 1 },
+  { label: 'More than half the days', score: 2 },
+  { label: 'Nearly every day', score: 3 },
+];
+
+export const quizzes = [
+  {
+    slug: 'phq-9',
+    title: 'Mood check (PHQ-9)',
+    description:
+      'Over the last 2 weeks, how often have you been bothered by any of the following problems? This is a screening tool, not a diagnosis.',
+    moderateRiskScore: 10,
+    highRiskScore: 15,
+    questions: [
+      'Little interest or pleasure in doing things',
+      'Feeling down, depressed, or hopeless',
+      'Trouble falling or staying asleep, or sleeping too much',
+      'Feeling tired or having little energy',
+      'Poor appetite or overeating',
+      'Feeling bad about yourself, or that you are a failure or have let yourself or your family down',
+      'Trouble concentrating on things, such as reading or watching television',
+      'Moving or speaking so slowly that other people could have noticed, or being so fidgety or restless that you have been moving around a lot more than usual',
+      'Thoughts that you would be better off dead, or of hurting yourself in some way',
+    ].map((text, i) => ({ text, options: FREQUENCY, critical: i === 8 })),
+  },
+  {
+    slug: 'gad-7',
+    title: 'Anxiety check (GAD-7)',
+    description:
+      'Over the last 2 weeks, how often have you been bothered by the following problems? This is a screening tool, not a diagnosis.',
+    moderateRiskScore: 10,
+    highRiskScore: 15,
+    questions: [
+      'Feeling nervous, anxious, or on edge',
+      'Not being able to stop or control worrying',
+      'Worrying too much about different things',
+      'Trouble relaxing',
+      'Being so restless that it is hard to sit still',
+      'Becoming easily annoyed or irritable',
+      'Feeling afraid, as if something awful might happen',
+    ].map((text) => ({ text, options: FREQUENCY, critical: false })),
   },
 ];

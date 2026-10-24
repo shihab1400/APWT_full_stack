@@ -7,6 +7,8 @@ allowBuilds:
   unrs-resolver: true
   prisma: true
   '@prisma/engines': true
+  '@google/genai': false
+  protobufjs: false
 
 minimumReleaseAgeExclude:
   - '@nestjs/swagger@12.0.4'

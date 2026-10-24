@@ -9,6 +9,9 @@ const envSchema = z.object({
   REFRESH_TTL_DAYS: z.coerce.number().int().positive().default(7),
   WEB_ORIGIN: z.string().default('http://localhost:3000'),
   GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default('gemini-3.5-flash'),
+  /** Comma-separated; tried in order when the primary model fails or is rate limited. */
+  GEMINI_FALLBACK_MODELS: z.string().default('gemini-2.5-flash,gemini-3.1-flash-lite'),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -89,7 +89,7 @@ Cross-cutting: global exception filter, Helmet, CORS allow-list, rate limiting (
 ## Phases
 1. ✅ **Foundation (done 2026-10-24):** monorepo scaffold, local PostgreSQL database `mindease`, Prisma schema + migrations, `shared` package, auth + RBAC, CI (lint, typecheck, test).
 2. ✅ **Public + content (done 2026-10-24):** guest pages, blogs/FAQ/pricing/policies/hotlines, contact form.
-3. **Assessment + AI chat:** quiz engine and scoring, Gemini streaming chat, daily cap, risk detection and alerts.
+3. ✅ **Assessment + AI chat (done 2026-10-24):** quiz engine and scoring, Gemini streaming chat, daily cap, risk detection and alerts.
 4. **Doctors + booking:** registration, admin approval, availability, appointments, notifications and reminders.
 5. **Payments + subscription:** SSLCommerz sandbox, upgrade flow, fee cap, transaction rollback, admin ledger.
 6. **Doctor tools + admin:** consultation notes, earnings, reviews and moderation, user management, audit log, quiz CRUD.
@@ -158,3 +158,37 @@ Versions actually installed: Next.js 16.4, React 19.3, NestJS 12 (ESM, Vitest, o
 - **Seed:** hotlines, 10 FAQs in 4 categories, 4 articles, and 3 fictional demo doctors (development only, password `Doctor12345`).
 - **Price:** the paid plan costs `PAID_PLAN_MONTHLY_PRICE` = 499 BDT/month (`packages/shared/src/constants.ts`). This is a placeholder for the team to confirm.
 - **Not yet true:** the privacy policy describes the target system. Encryption at rest and daily backups are delivered in phase 8.
+
+## Phase 3 implementation notes (2026-10-24)
+- **Migration `assessment_and_chat`:**
+  - `Quiz.slug` and `Quiz.moderateRiskScore`.
+  - `QuizQuestion.critical`.
+  - `QuizAttempt.maxScore` and `QuizAttempt.critical`.
+  - `RiskAlert.sourceId`.
+- **Assessments:**
+  - **Questionnaires:** PHQ-9 (mood) and GAD-7 (anxiety) are seeded. Both are free-to-use screening tools.
+  - **Thresholds:** moderate at 10 or more, high at 15 or more. 15 matches FR_3.
+  - **Self-harm item:** PHQ-9 item 9 is marked `critical`, so any non-zero answer makes the result HIGH.
+  - **Scoring:** done on the server (`assessment/scoring.ts`); option scores are never sent to the browser. Thresholds are read at submit time, so admin changes apply to the next attempt.
+  - **HIGH result:** creates a `RiskAlert` (source QUIZ) and returns 3 verified doctors to recommend.
+- **AI chat:**
+  - **Endpoint:** `POST /api/chat/messages` streams Server-Sent Events: `session`, then `crisis` if detected, then repeated `delta`, then `done` or `error`. It works through the Next `/api` rewrite.
+  - **Models:** `gemini-3.5-flash` with minimal thinking, falling back in order to `gemini-2.5-flash` and `gemini-3.1-flash-lite`.
+  - **No SDK retries:** they are disabled, so a rate-limited model hands over immediately.
+  - **Waiting:** up to 15 s for the first chunk.
+  - **Configuration:** `GEMINI_MODEL` and `GEMINI_FALLBACK_MODELS`.
+  - **Measured speed:** first words in about 1.0–2.9 s through the web proxy.
+- **Free-tier API limit:** Google's free tier allows only **5 requests per minute per model**. With 3 models, that is about 15 chat replies per minute across all users. A paid Gemini key is needed for real traffic.
+- **Daily limit:** 20 messages per Dhaka calendar day for FREE users (`FREE_DAILY_CHAT_LIMIT`). Going over returns `429` with `code: CHAT_LIMIT_REACHED`. A crisis message is **never** blocked: it gets a fixed safety reply plus hotlines.
+- **Crisis detection:** a keyword screen in English, Romanised Bangla and Bangla script (`risk/crisis-detector.ts`) runs before the model. On a match:
+  - the message is flagged;
+  - a `RiskAlert` is created (source CHAT, severity HIGH);
+  - the hotline card is streamed to the user;
+  - the AI still replies.
+- **Safe fallback:** if every model fails, the user gets a fixed message pointing to the hotlines and doctors instead of an error.
+- **Web pages:**
+  - `/dashboard/chat`: conversation list, streaming replies, inline crisis card, count of messages left, upgrade prompt.
+  - `/dashboard/assessment`: assessments plus a history of results.
+  - `/dashboard/assessment/[id]`: take an assessment and see the result, with doctor cards and the crisis card when relevant.
+- **Hotlines:** 999 plus MindEase Emergency Service (01568978234, 24/7, free).
+- **Deferred to phase 6:** the admin Risk Alerts tab and the quiz/threshold editing screens (FR_3). The data and API pieces they need are already in place.

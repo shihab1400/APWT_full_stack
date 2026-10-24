@@ -2,7 +2,10 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AdminModule } from './admin/admin.module.js';
+import { AiModule } from './ai/ai.module.js';
+import { AssessmentModule } from './assessment/assessment.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { ChatModule } from './chat/chat.module.js';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard.js';
 import { RolesGuard } from './common/guards/roles.guard.js';
 import { ConfigModule } from './config/config.module.js';
@@ -11,17 +14,24 @@ import { ContentModule } from './content/content.module.js';
 import { DoctorsModule } from './doctors/doctors.module.js';
 import { HealthController } from './health.controller.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { RiskModule } from './risk/risk.module.js';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module.js';
 
 @Module({
   imports: [
     ConfigModule,
     PrismaModule,
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+    SubscriptionsModule,
     AuthModule,
     AdminModule,
     ContentModule,
     DoctorsModule,
     ContactModule,
+    RiskModule,
+    AiModule,
+    AssessmentModule,
+    ChatModule,
   ],
   controllers: [HealthController],
   providers: [

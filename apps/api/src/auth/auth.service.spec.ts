@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
 import type { Env } from '../config/env.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
+import { TierService } from '../subscriptions/tier.service.js';
 import { AuthService } from './auth.service.js';
 
 const env = {
@@ -44,7 +45,8 @@ describe('AuthService', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new AuthService(prisma as unknown as PrismaService, jwt, env);
+    const db = prisma as unknown as PrismaService;
+    service = new AuthService(db, jwt, new TierService(db), env);
   });
 
   describe('register', () => {
