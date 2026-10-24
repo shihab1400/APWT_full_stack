@@ -13,11 +13,13 @@ import {
   type AppointmentStatus,
   type AppointmentType,
   type BookAppointmentDto,
+  type BookingCheckout,
 } from '@mindease/shared';
 import { formatDhaka } from '../common/dhaka-time.js';
 import type { RequestUser } from '../common/decorators.js';
 import { publicDoctorWhere } from '../content/content.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { PaymentsService } from '../payments/payments.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AvailabilityService } from '../scheduling/availability.service.js';
 import { TierService } from '../subscriptions/tier.service.js';
@@ -37,7 +39,8 @@ const include = {
       user: { select: { name: true } },
     },
   },
-  patient: { select: { id: true, name: true } },
+  patient: { select: { id: true, name: true, email: true } },
+  payment: { select: { reference: true, status: true, amount: true } },
 } as const;
 
 type AppointmentRow = Prisma.AppointmentGetPayload<{ include: typeof include }>;
@@ -59,12 +62,16 @@ export class AppointmentsService {
     private readonly availability: AvailabilityService,
     private readonly tiers: TierService,
     private readonly notifications: NotificationsService,
+    private readonly payments: PaymentsService,
   ) {}
 
   // ───────────── Patients ─────────────
 
-  /** Books an open slot as a request the doctor must accept (FR_8). */
-  async book(user: RequestUser, dto: BookAppointmentDto): Promise<AppointmentItem> {
+  /**
+   * Holds an open slot and starts payment of the doctor's fee (FR_8). Once paid,
+   * it becomes a request the doctor must accept; unpaid holds are released.
+   */
+  async book(user: RequestUser, dto: BookAppointmentDto): Promise<BookingCheckout> {
     // Checked against the database, not the token, so an upgrade counts immediately.
     if ((await this.tiers.tierOf(user)) !== 'PAID') {
       throw new ForbiddenException({
@@ -75,7 +82,7 @@ export class AppointmentsService {
     }
     const doctor = await this.prisma.doctorProfile.findFirst({
       where: { id: dto.doctorId, ...publicDoctorWhere },
-      select: { id: true, userId: true, clinicAddress: true },
+      select: { id: true, userId: true, clinicAddress: true, fee: true, user: { select: { name: true } } },
     });
     if (!doctor) throw new NotFoundException('Doctor not found');
     if (dto.type === 'OFFLINE' && !doctor.clinicAddress) {
@@ -83,7 +90,7 @@ export class AppointmentsService {
     }
 
     const startsAt = new Date(dto.startsAt);
-    const appointment = await this.prisma.$transaction(async (tx) => {
+    const { appointment, payment } = await this.prisma.$transaction(async (tx) => {
       // Serialises bookings per doctor so two patients can't take the same slot.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${doctor.id}))`;
       const slot = await this.availability.assertBookable(tx, doctor.id, startsAt);
@@ -98,41 +105,36 @@ export class AppointmentsService {
       });
       if (clash) throw new ConflictException('You already have an appointment at this time');
 
-      return tx.appointment.create({
+      const created = await tx.appointment.create({
         data: {
           patientId: user.id,
           doctorId: doctor.id,
           type: dto.type,
-          // Payment is added in front of this step in phase 5.
-          status: 'REQUESTED',
+          status: 'PENDING_PAYMENT',
           startsAt: slot.startsAt,
           endsAt: slot.endsAt,
           patientNote: dto.note || null,
         },
-        include,
       });
+      // The amount is always the doctor's own fee; the client never sends one.
+      const payment = await this.payments.createAppointmentPayment(tx, {
+        userId: user.id,
+        appointmentId: created.id,
+        doctorId: doctor.id,
+        amount: doctor.fee.toNumber(),
+      });
+      const appointment = await tx.appointment.findUniqueOrThrow({ where: { id: created.id }, include });
+      return { appointment, payment };
     });
 
-    // Lets admins see that a high-risk user followed the advice to see a doctor (FR #20).
-    await this.prisma.riskAlert.updateMany({
-      where: { userId: user.id, bookedDoctor: false },
-      data: { bookedDoctor: true },
+    // If the gateway can't be reached, this fails the payment and releases the slot.
+    const checkout = await this.payments.checkout(payment.id, {
+      reference: payment.reference,
+      amount: payment.amount.toNumber(),
+      productName: `Consultation with ${doctor.user.name}`,
+      customer: { name: appointment.patient.name, email: appointment.patient.email },
     });
-
-    await this.notifications.notify(doctor.userId, {
-      type: 'APPOINTMENT_REQUESTED',
-      title: `New booking request from ${appointment.patient.name}`,
-      body: describe(appointment),
-      email: true,
-      link: DOCTOR_LINK,
-    });
-    await this.notifications.notify(user.id, {
-      type: 'APPOINTMENT_REQUESTED',
-      title: `Request sent to ${appointment.doctor.user.name}`,
-      body: `${describe(appointment)}. You'll be notified when the doctor responds.`,
-      link: PATIENT_LINK,
-    });
-    return toItem(appointment);
+    return { ...checkout, appointment: toItem(appointment) };
   }
 
   async listForPatient(userId: string): Promise<AppointmentItem[]> {
@@ -152,6 +154,7 @@ export class AppointmentsService {
       cancelReason: reason || null,
       cancelledById: userId,
     }, { upcomingOnly: true });
+    await this.payments.refundDueForAppointment(appt.id, 'You cancelled the appointment');
     await this.notifications.notify(appt.doctor.userId, {
       type: 'APPOINTMENT_CANCELLED',
       title: `${appt.patient.name} cancelled their appointment`,
@@ -193,6 +196,7 @@ export class AppointmentsService {
       status: 'DECLINED',
       declineReason: reason,
     });
+    await this.payments.refundDueForAppointment(appt.id, 'The doctor declined the request');
     await this.notifications.notify(appt.patientId, {
       type: 'APPOINTMENT_DECLINED',
       title: `${appt.doctor.user.name} declined your request`,
@@ -213,6 +217,7 @@ export class AppointmentsService {
       cancelReason: reason,
       cancelledById: doctorUserId,
     }, { upcomingOnly: true });
+    await this.payments.refundDueForAppointment(appt.id, 'The doctor cancelled the appointment');
     await this.notifications.notify(appt.patientId, {
       type: 'APPOINTMENT_CANCELLED',
       title: `${appt.doctor.user.name} cancelled your appointment`,
@@ -304,5 +309,8 @@ export function toItem(a: AppointmentRow): AppointmentItem {
       clinicAddress: a.doctor.clinicAddress,
     },
     patient: { id: a.patient.id, name: a.patient.name },
+    payment: a.payment
+      ? { reference: a.payment.reference, status: a.payment.status, amount: a.payment.amount.toNumber() }
+      : null,
   };
 }

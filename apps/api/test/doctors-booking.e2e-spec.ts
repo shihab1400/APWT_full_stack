@@ -77,6 +77,14 @@ describe('Doctors, scheduling & booking (e2e)', () => {
     return { id: user.id, cookies: [`${ACCESS_TOKEN_COOKIE}=${token}`], doctorId: user.doctorProfile?.id };
   }
 
+  /** Finishes a test-checkout payment as paid. */
+  const pay = (who: TestUser, reference: string) =>
+    http()
+      .post('/api/payments/test/complete')
+      .set('Cookie', who.cookies)
+      .send({ reference, outcome: 'PAID' })
+      .expect(200);
+
   const notificationsOf = (userId: string) =>
     prisma.notification.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } });
 
@@ -95,6 +103,9 @@ describe('Doctors, scheduling & booking (e2e)', () => {
       select: { licenseFile: true },
     });
     for (const f of files) await app.get(LicenseStorage).remove(f.licenseFile!);
+    await prisma.payment.deleteMany({
+      where: { OR: [{ user: { email: mine } }, { doctor: { user: { email: mine } } }] },
+    });
     await prisma.appointment.deleteMany({
       where: { OR: [{ patient: { email: mine } }, { doctor: { user: { email: mine } } }] },
     });
@@ -240,6 +251,12 @@ describe('Doctors, scheduling & booking (e2e)', () => {
         .post('/api/appointments')
         .set('Cookie', who.cookies)
         .send({ doctorId, startsAt: startsAt.toISOString(), type, note: 'Trouble sleeping' });
+    /** Books and completes the test checkout; returns the appointment id. */
+    const bookAndPay = async (who: TestUser, startsAt: Date) => {
+      const res = await book(who, startsAt).expect(201);
+      await pay(who, res.body.reference);
+      return res.body.appointment.id as string;
+    };
     const openSlots = async () =>
       (await http().get(`/api/doctors/${doctor.doctorId}/slots`).expect(200)).body.slots.map(
         (s: { startsAt: string }) => s.startsAt,
@@ -313,20 +330,23 @@ describe('Doctors, scheduling & booking (e2e)', () => {
 
     it('books an open slot, locks it and notifies both sides', async () => {
       const res = await book(patient, monday11).expect(201);
-      expect(res.body).toMatchObject({
-        status: 'REQUESTED',
+      expect(res.body).toMatchObject({ amount: 700, provider: 'test' });
+      expect(res.body.appointment).toMatchObject({
+        status: 'PENDING_PAYMENT',
         type: 'ONLINE',
         startsAt: monday11.toISOString(),
         patientNote: 'Trouble sleeping',
         patient: { name: `${NAME} patient` },
       });
+      // Held while the patient pays.
       expect(await openSlots()).not.toContain(monday11.toISOString());
-
       const other = await signUp('other', 'USER', { paid: true });
       await book(other, monday11).expect(409);
+      expect((await notificationsOf(doctor.id)).map((n) => n.type)).not.toContain('APPOINTMENT_REQUESTED');
 
+      await pay(patient, res.body.reference);
       expect((await notificationsOf(doctor.id)).map((n) => n.type)).toContain('APPOINTMENT_REQUESTED');
-      expect((await notificationsOf(patient.id)).map((n) => n.type)).toContain('APPOINTMENT_REQUESTED');
+      expect((await notificationsOf(patient.id)).map((n) => n.type)).toContain('PAYMENT_RECEIVED');
     });
 
     it('lets only one of two simultaneous bookings win', async () => {
@@ -358,8 +378,7 @@ describe('Doctors, scheduling & booking (e2e)', () => {
     });
 
     it('confirms a request, then the patient can cancel it', async () => {
-      const booked = await book(patient, monday11).expect(201);
-      const id = booked.body.id;
+      const id = await bookAndPay(patient, monday11);
 
       const stranger = await signUp('stranger', 'DOCTOR', { approved: true });
       await http().post(`/api/doctor/appointments/${id}/accept`).set('Cookie', stranger.cookies).expect(404);
@@ -396,7 +415,7 @@ describe('Doctors, scheduling & booking (e2e)', () => {
       const alert = await prisma.riskAlert.create({
         data: { userId: user.id, source: 'QUIZ', severity: 'HIGH' },
       });
-      await book(user, new Date(monday11.getTime() + 7 * DAY_MS)).expect(201);
+      await bookAndPay(user, new Date(monday11.getTime() + 7 * DAY_MS));
       expect(await prisma.riskAlert.findUnique({ where: { id: alert.id } })).toMatchObject({ bookedDoctor: true });
     });
 
@@ -522,11 +541,12 @@ describe('Doctors, scheduling & booking (e2e)', () => {
       await waitFor('event: ready');
 
       const slot = (await http().get(`/api/doctors/${doctor.doctorId}/slots`).expect(200)).body.slots[0];
-      await http()
+      const booked = await http()
         .post('/api/appointments')
         .set('Cookie', patient.cookies)
         .send({ doctorId: doctor.doctorId, startsAt: slot.startsAt, type: 'ONLINE' })
         .expect(201);
+      await pay(patient, booked.body.reference);
       await waitFor('event: notification');
       expect(text).toContain(`New booking request from ${NAME} live-pat`);
       abort.abort();

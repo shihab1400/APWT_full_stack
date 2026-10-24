@@ -9,6 +9,7 @@ import { APPOINTMENT_TYPE_LABEL, REMINDER_MINUTES_BEFORE } from '@mindease/share
 import { formatDhaka } from '../common/dhaka-time.js';
 import { ENV, type Env } from '../config/env.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { PaymentsService } from '../payments/payments.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { DOCTOR_LINK, PATIENT_LINK } from './appointments.service.js';
 
@@ -16,8 +17,9 @@ const TICK_MS = 60_000;
 export const EXPIRED_REASON = 'The doctor did not respond before the session time';
 
 /**
- * Once a minute: sends the 15-minute session reminder to both parties and
- * closes requests the doctor never answered. Tests call tick() directly.
+ * Once a minute: sends the 15-minute session reminder to both parties, closes
+ * requests the doctor never answered, and releases bookings left unpaid.
+ * Tests call tick() directly.
  */
 @Injectable()
 export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy {
@@ -27,6 +29,7 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly payments: PaymentsService,
     @Inject(ENV) private readonly env: Env,
   ) {}
 
@@ -42,8 +45,12 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
     clearInterval(this.timer);
   }
 
-  async tick(now = new Date()): Promise<{ reminded: number; expired: number }> {
-    return { reminded: await this.sendReminders(now), expired: await this.expireRequests(now) };
+  async tick(now = new Date()): Promise<{ reminded: number; expired: number; released: number }> {
+    return {
+      reminded: await this.sendReminders(now),
+      expired: await this.expireRequests(now),
+      released: await this.payments.expireStale(now),
+    };
   }
 
   private async sendReminders(now: Date): Promise<number> {
@@ -101,6 +108,7 @@ export class RemindersService implements OnApplicationBootstrap, OnModuleDestroy
         data: { status: 'CANCELLED', cancelReason: EXPIRED_REASON },
       });
       if (!count) continue;
+      await this.payments.refundDueForAppointment(a.id, 'The doctor did not respond in time');
       await this.notifications.notify(a.patientId, {
         type: 'APPOINTMENT_EXPIRED',
         title: `Your request to ${a.doctor.user.name} expired`,

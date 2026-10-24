@@ -47,6 +47,18 @@ Without SMTP settings, emails are written to the API log instead of being sent. 
 
 Emails sent: email verification, doctor approval or rejection, booking requests (to the doctor), confirmations, declines and cancellations, the 15-minute reminder, expired requests, and contact-form receipts. A personal Gmail account can send about 500 emails a day. Tests never send email.
 
+## Payments (SSLCommerz)
+Premium (499 BDT for 30 days) and consultation fees are paid through SSLCommerz hosted checkout (bKash, Nagad, Rocket, cards).
+
+1. Register a free sandbox store at https://developer.sslcommerz.com and note the Store ID and Store Password from the email.
+2. In `apps/api/.env` set `SSLCOMMERZ_STORE_ID`, `SSLCOMMERZ_STORE_PASSWORD` and `SSLCOMMERZ_SANDBOX=true`, then restart. The API log shows `SSLCommerz sandbox store …`.
+3. On the sandbox payment page, use the test cards or mobile-banking test numbers listed in the SSLCommerz sandbox docs; no real money moves.
+
+Without credentials, a built-in **test checkout** (Pay / Fail / Cancel buttons) is used instead, outside production only. Automated tests always use it.
+
+- **Holds:** a booking holds its slot for 15 minutes while the patient pays. Unpaid holds are released automatically.
+- **Refunds:** if a paid booking is declined, cancelled by either side, or expires, the payment becomes "Refund due". An admin sends the money back from the SSLCommerz merchant panel, then marks it refunded at `/admin/payments` (audited).
+
 ## Scripts (from the repo root)
 
 | Command | |

@@ -62,4 +62,6 @@ export interface AppointmentItem {
     clinicAddress: string | null;
   };
   patient: { id: string; name: string };
+  /** The consultation payment, if one was started. */
+  payment: { reference: string; status: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'REFUND_DUE' | 'REFUNDED'; amount: number } | null;
 }

@@ -23,7 +23,7 @@ export default function UserDashboard() {
               {user.tier === "FREE" && (
                 <>
                   {" · "}
-                  <Link href="/pricing" className="text-primary hover:underline">
+                  <Link href="/dashboard/billing" className="text-primary hover:underline">
                     See Premium
                   </Link>
                 </>

@@ -6,6 +6,7 @@ import type { AppointmentItem } from "@mindease/shared";
 import { AppShell } from "@/components/app-shell";
 import { Outcome, ReasonAction, StatusBadge, When } from "@/components/appointment-parts";
 import { formatBdt } from "@/components/doctor-card";
+import { PaymentBadge } from "@/components/payment-parts";
 import { Alert, ButtonLink, Card } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useNow } from "@/lib/use-now";
@@ -25,7 +26,7 @@ function Appointments() {
 
   const now = useNow();
   const isUpcoming = (a: AppointmentItem) =>
-    (a.status === "REQUESTED" || a.status === "ACCEPTED") && new Date(a.endsAt).getTime() > now;
+    ["PENDING_PAYMENT", "REQUESTED", "ACCEPTED"].includes(a.status) && new Date(a.endsAt).getTime() > now;
   // The API returns newest first; upcoming reads best soonest first.
   const upcoming = list.data?.filter(isUpcoming).reverse() ?? [];
   const past = list.data?.filter((a) => !isUpcoming(a)) ?? [];
@@ -61,7 +62,9 @@ function Appointments() {
                 </p>
               </Card>
             ) : (
-              upcoming.map((a) => <AppointmentCard key={a.id} appointment={a} canCancel />)
+              upcoming.map((a) => (
+                <AppointmentCard key={a.id} appointment={a} canCancel={a.status !== "PENDING_PAYMENT"} />
+              ))
             )}
           </section>
 
@@ -110,6 +113,18 @@ function AppointmentCard({ appointment: a, canCancel }: { appointment: Appointme
         <p className="text-sm text-muted">Address: {a.doctor.clinicAddress}</p>
       )}
       {a.patientNote && <p className="text-sm text-muted">Your note: {a.patientNote}</p>}
+      {a.payment && (
+        <p className="flex flex-wrap items-center gap-2 text-sm text-muted">
+          Payment {formatBdt(a.payment.amount)} <PaymentBadge status={a.payment.status} />
+          {a.payment.status === "REFUND_DUE" && "Full refund on its way."}
+        </p>
+      )}
+      {a.status === "PENDING_PAYMENT" && (
+        <p className="text-sm text-muted">
+          Waiting for your payment to be confirmed. If it isn&apos;t completed, the time is
+          released automatically.
+        </p>
+      )}
       <Outcome appointment={a} />
       {cancel.error && <Alert>{cancel.error.message}</Alert>}
       {canCancel && (
@@ -117,7 +132,7 @@ function AppointmentCard({ appointment: a, canCancel }: { appointment: Appointme
           <ReasonAction
             label="Cancel appointment"
             confirmLabel="Cancel appointment"
-            prompt="Reason for cancelling (optional)"
+            prompt="Reason for cancelling (optional). Any payment is refunded in full."
             variant="ghost"
             pending={cancel.isPending}
             onConfirm={(reason) => cancel.mutate(reason)}

@@ -16,6 +16,7 @@ import { DoctorsModule } from './doctors/doctors.module.js';
 import { HealthController } from './health.controller.js';
 import { MailModule } from './mail/mail.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
+import { PaymentsModule } from './payments/payments.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { RiskModule } from './risk/risk.module.js';
 import { SchedulingModule } from './scheduling/scheduling.module.js';
@@ -40,6 +41,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module.js';
     ChatModule,
     SchedulingModule,
     AppointmentsModule,
+    PaymentsModule,
   ],
   controllers: [HealthController],
   providers: [

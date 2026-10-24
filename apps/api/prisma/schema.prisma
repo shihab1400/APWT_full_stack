@@ -126,6 +126,7 @@ model DoctorProfile {
   availability AvailabilitySlot[]
   blocks       AvailabilityBlock[]
   appointments Appointment[]
+  payments     Payment[]
   reviews      Review[]
   notes        ConsultationNote[]
 
@@ -209,6 +210,8 @@ enum PaymentStatus {
   PENDING
   SUCCEEDED
   FAILED
+  /// Money was received but the service did not happen; an admin must send it back.
+  REFUND_DUE
   REFUNDED
 }
 
@@ -219,24 +222,35 @@ enum PaymentPurpose {
 
 model Payment {
   id             String         @id @default(uuid())
+  /// Our transaction ID sent to the gateway (tran_id), e.g. MEP-7K2Q9X…; max 30 chars.
+  reference      String         @unique
   userId         String
   purpose        PaymentPurpose
+  /// Cleared if an unpaid booking is rolled back; doctorId keeps the ledger readable.
   appointmentId  String?        @unique
+  doctorId       String?
   subscriptionId String?
   amount         Decimal        @db.Decimal(10, 2)
   currency       String         @default("BDT")
   status         PaymentStatus  @default(PENDING)
-  provider       String // e.g. "sslcommerz"
+  provider       String // "sslcommerz" or "test"
+  /// Gateway's bank transaction ID once paid.
   gatewayTxnId   String?        @unique
+  /// Payment method reported by the gateway, e.g. "BKASH-BKash".
+  method         String?
   failureReason  String?
+  paidAt         DateTime?
+  refundedAt     DateTime?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  user         User          @relation(fields: [userId], references: [id])
-  appointment  Appointment?  @relation(fields: [appointmentId], references: [id])
-  subscription Subscription? @relation(fields: [subscriptionId], references: [id])
+  user         User           @relation(fields: [userId], references: [id])
+  appointment  Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  doctor       DoctorProfile? @relation(fields: [doctorId], references: [id])
+  subscription Subscription?  @relation(fields: [subscriptionId], references: [id])
 
   @@index([status, createdAt])
+  @@index([doctorId, status])
 }
 
 // ───────────── AI chat ─────────────

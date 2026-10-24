@@ -7,18 +7,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   APPOINTMENT_TYPE_LABEL,
   BOOKING_WINDOW_DAYS,
+  PAYMENT_HOLD_MINUTES,
   SLOT_UNAVAILABLE,
-  type AppointmentItem,
   type AppointmentType,
   type AuthUser,
   type BookAppointmentDto,
+  type BookingCheckout,
   type DoctorSlots,
   type PublicDoctor,
 } from "@mindease/shared";
 import { AppShell } from "@/components/app-shell";
-import { When } from "@/components/appointment-parts";
 import { Rating, formatBdt } from "@/components/doctor-card";
-import { Alert, Button, ButtonLink, Card, TextArea } from "@/components/ui";
+import { Alert, Button, Card, TextArea } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
 import { formatDay, formatLongDay, formatTime, groupByDay } from "@/lib/datetime";
 import { USER_NAV } from "../../nav";
@@ -50,8 +50,12 @@ function Booking({ doctorId, user }: { doctorId: string; user: AuthUser }) {
 
   const book = useMutation({
     mutationFn: (dto: BookAppointmentDto) =>
-      api<AppointmentItem>("/appointments", { method: "POST", body: dto }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["appointments"] }),
+      api<BookingCheckout>("/appointments", { method: "POST", body: dto }),
+    onSuccess: (checkout) => {
+      void qc.invalidateQueries({ queryKey: ["appointments"] });
+      // Off to the payment gateway; it sends the browser back to our result page.
+      window.location.assign(checkout.checkoutUrl);
+    },
     onError: (err) => {
       if (err instanceof ApiError && err.body.code === SLOT_UNAVAILABLE) {
         setStartsAt(undefined);
@@ -66,19 +70,11 @@ function Booking({ doctorId, user }: { doctorId: string; user: AuthUser }) {
 
   if (book.data) {
     return (
-      <Card className="mx-auto flex max-w-xl flex-col gap-4" role="status">
-        <h1 className="text-xl font-semibold">Request sent to {doctor.data.name}</h1>
-        <When appointment={book.data} />
-        <p className="text-sm text-muted">
-          The time is held for you while the doctor reviews your request. We&apos;ll notify you
-          when they confirm, and remind you 15 minutes before the session.
+      <Card className="mx-auto max-w-xl" role="status">
+        <p className="font-medium">Taking you to payment…</p>
+        <p className="mt-1 text-sm text-muted">
+          Your time is held for {PAYMENT_HOLD_MINUTES} minutes while you pay.
         </p>
-        <div className="flex flex-wrap gap-2">
-          <ButtonLink href="/dashboard/appointments">My appointments</ButtonLink>
-          <ButtonLink href="/doctors" variant="secondary">
-            Browse doctors
-          </ButtonLink>
-        </div>
       </Card>
     );
   }
@@ -110,7 +106,7 @@ function Booking({ doctorId, user }: { doctorId: string; user: AuthUser }) {
       {!premium && (
         <Alert tone="info">
           Booking a doctor is part of Premium.{" "}
-          <Link href="/pricing" className="font-medium underline">
+          <Link href="/dashboard/billing" className="font-medium underline">
             See Premium
           </Link>{" "}
           to book this session. You can still look at the open times below.
@@ -251,9 +247,14 @@ function Booking({ doctorId, user }: { doctorId: string; user: AuthUser }) {
             )}
           </p>
           <Button type="submit" disabled={!premium || !startsAt || book.isPending}>
-            {book.isPending ? "Sending request…" : "Request appointment"}
+            {book.isPending ? "Holding your time…" : `Pay ${formatBdt(doctor.data.fee)} and request`}
           </Button>
         </div>
+        <p className="text-xs text-muted">
+          Your time is held for {PAYMENT_HOLD_MINUTES} minutes while you pay securely through
+          SSLCommerz (bKash, Nagad, Rocket or card). The doctor sees your request once it&apos;s paid.
+          If they decline or either of you cancels, you get a full refund.
+        </p>
       </form>
     </div>
   );

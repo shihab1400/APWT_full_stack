@@ -91,7 +91,7 @@ Cross-cutting: global exception filter, Helmet, CORS allow-list, rate limiting (
 2. ✅ **Public + content (done 2026-10-24):** guest pages, blogs/FAQ/pricing/policies/hotlines, contact form.
 3. ✅ **Assessment + AI chat (done 2026-10-24):** quiz engine and scoring, Gemini streaming chat, daily cap, risk detection and alerts.
 4. ✅ **Doctors + booking (done 2026-10-24):** registration, admin approval, availability, appointments, notifications and reminders.
-5. **Payments + subscription:** SSLCommerz sandbox, upgrade flow, fee cap, transaction rollback, admin ledger.
+5. ✅ **Payments + subscription (done 2026-10-24):** SSLCommerz sandbox, upgrade flow, fee cap, transaction rollback, admin ledger.
 6. **Doctor tools + admin:** consultation notes, earnings, reviews and moderation, user management, audit log, quiz CRUD.
 7. **Text messaging:** per-appointment patient–doctor chat (WebSocket), message history, unread badges.
 8. **Hardening:** encryption at rest, rate limits, tests, performance pass, deployment (Vercel/Render or a VPS), daily `pg_dump` backup job.
@@ -231,3 +231,29 @@ Versions actually installed: Next.js 16.4, React 19.3, NestJS 12 (ESM, Vitest, o
 - **Emails:** verification (plus `POST /api/auth/resend-verification` and a "Resend email" button), doctor approved/rejected, booking request to the doctor, confirmed/declined/cancelled, 15-minute reminder, expired request, and the contact-form receipt.
   - The patient's own "request sent" notice stays in-app only.
 - **Privacy:** one shared HTML + plain-text template with all user text escaped. Emails carry no assessment, chat or risk data, and not the patient's booking note. The contact receipt echoes nothing the visitor typed, so the form can't relay text to arbitrary addresses.
+
+## Phase 5 implementation notes (2026-10-24)
+- **Migration `payments`:**
+  - `Payment`: `reference` (our `tran_id`, `MEP-` + 16 hex), `doctorId`, `method`, `paidAt`, `refundedAt`.
+  - New status `REFUND_DUE`.
+  - `appointmentId` is set to null if the booking is rolled back.
+- **Gateway:**
+  - `PaymentProvider` interface with two implementations: `SslCommerzProvider` (v4 hosted checkout, sandbox or live) and `TestPaymentProvider`.
+  - The test checkout is used when no credentials are set (refused in production) and always in tests.
+  - Callbacks are not trusted. The browser return (`/api/payments/sslcommerz/:outcome`) and the IPN only supply `tran_id`/`val_id`; the API then asks SSLCommerz (validation API, then transaction-ID query) and settles from that answer.
+  - Settling is idempotent (status-guarded updates in transactions), so return, IPN, status checks and the expiry sweep can overlap.
+- **Premium:** 499 BDT buys 30 days. Paying again adds 30 days after the current end. No auto-renew. The tier is read from the database, so it applies immediately; the web also refreshes the token.
+- **Consultations (FR_8, NFR #6):**
+  - Booking creates `PENDING_PAYMENT` plus a `PENDING` payment for exactly the doctor's fee, in the booking transaction.
+  - Paid: the request goes to the doctor (in-app plus email), the patient gets a receipt, and risk alerts are marked `bookedDoctor`.
+  - Failed, cancelled, gateway unreachable, or unpaid after 15 minutes: the payment is `FAILED` and the appointment is deleted, so the slot is free and nothing is left behind.
+- **Fee cap:** the amount is computed by the server. If the gateway reports any other amount or currency, the payment is not accepted: it becomes `REFUND_DUE` and the booking is released. A payment that arrives after its hold expired is handled the same way.
+- **Refunds:** full refund when a paid booking is declined, cancelled by either side, or expires unanswered. The payment becomes `REFUND_DUE`; admins and the patient are notified. The admin sends the money from the merchant panel and marks it refunded with a note (`PAYMENT_REFUNDED` audit entry with admin ID and timestamp).
+- **Admin ledger (FR #19):** `/admin/payments` shows transaction ID, gateway ID, user, doctor, amount, method, status and timestamp. Filters: status (including Success/Failed), purpose, date range. Totals: received, refunds due, refunded.
+- **Web:**
+  - `/dashboard/billing`: plan, upgrade or extend, payment history.
+  - `/dashboard/payments/[reference]`: result page, polls while pending.
+  - `/dashboard/payments/test-checkout`: test mode only.
+  - The booking page shows "Pay X BDT and request". Patient appointments show payment and refund status.
+- **Verified live:** sandbox sessions open, status checks reach the sandbox, and a gateway "cancel" posted through the Next proxy fails the payment and frees the slot. Completing a sandbox payment needs a browser on the SSLCommerz page.
+- **Production note:** the IPN needs a public URL (`PAYMENT_CALLBACK_BASE_URL`). On localhost the browser return plus the status check and expiry sweep do the settling.

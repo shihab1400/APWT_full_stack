@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { PaymentsModule } from '../payments/payments.module.js';
 import { SchedulingModule } from '../scheduling/scheduling.module.js';
 import {
   AdminAppointmentsController,
@@ -9,7 +10,7 @@ import { AppointmentsService } from './appointments.service.js';
 import { RemindersService } from './reminders.service.js';
 
 @Module({
-  imports: [SchedulingModule],
+  imports: [SchedulingModule, PaymentsModule],
   controllers: [
     PatientAppointmentsController,
     DoctorAppointmentsController,

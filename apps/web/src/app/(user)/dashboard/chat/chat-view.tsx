@@ -337,7 +337,7 @@ function LimitReached({ usage }: { usage: ChatUsage }) {
         </Link>
         .
       </span>
-      <ButtonLink href="/pricing">Upgrade to Premium</ButtonLink>
+      <ButtonLink href="/dashboard/billing">Upgrade to Premium</ButtonLink>
     </div>
   );
 }

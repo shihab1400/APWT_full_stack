@@ -5,6 +5,7 @@ import type { Pricing } from "@mindease/shared";
 import { formatBdt } from "@/components/doctor-card";
 import { ButtonLink, Card } from "@/components/ui";
 import { serverApi } from "@/lib/server-api";
+import { peekSession } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Pricing" };
 
@@ -25,8 +26,9 @@ export default function PricingPage() {
 }
 
 async function Plans() {
-  const pricing = await serverApi<Pricing>("/content/pricing");
+  const [pricing, session] = await Promise.all([serverApi<Pricing>("/content/pricing"), peekSession()]);
   const fees = pricing.consultationFees;
+  const patient = session.signedIn && session.role === "USER";
 
   return (
     <div className="flex flex-col gap-8">
@@ -55,13 +57,21 @@ async function Plans() {
                 </li>
               ))}
             </ul>
-            <ButtonLink
-              href="/register"
-              variant={plan.tier === "PAID" ? "primary" : "secondary"}
-              className="mt-auto"
-            >
-              {plan.tier === "PAID" ? "Start free, upgrade anytime" : "Create a free account"}
-            </ButtonLink>
+            {patient ? (
+              plan.tier === "PAID" && (
+                <ButtonLink href="/dashboard/billing" className="mt-auto">
+                  Upgrade to Premium
+                </ButtonLink>
+              )
+            ) : (
+              <ButtonLink
+                href="/register"
+                variant={plan.tier === "PAID" ? "primary" : "secondary"}
+                className="mt-auto"
+              >
+                {plan.tier === "PAID" ? "Start free, upgrade anytime" : "Create a free account"}
+              </ButtonLink>
+            )}
           </Card>
         ))}
       </div>

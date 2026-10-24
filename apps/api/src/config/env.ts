@@ -22,6 +22,18 @@ const envSchema = z.object({
   /** For Gmail, a 16-character App Password, not the account password. */
   SMTP_PASS: z.string().optional(),
   MAIL_FROM: z.string().optional(),
+  /** SSLCommerz store credentials. Without them, a built-in test checkout is used (not in production). */
+  SSLCOMMERZ_STORE_ID: z.string().optional(),
+  SSLCOMMERZ_STORE_PASSWORD: z.string().optional(),
+  SSLCOMMERZ_SANDBOX: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+  /**
+   * Public base URL the gateway sends the browser (and its IPN) back to.
+   * Defaults to WEB_ORIGIN, whose /api/* is proxied to this API.
+   */
+  PAYMENT_CALLBACK_BASE_URL: z.string().optional(),
   GEMINI_API_KEY: z.string().optional(),
   GEMINI_MODEL: z.string().default('gemini-3.5-flash'),
   /** Comma-separated; tried in order when the primary model fails or is rate limited. */

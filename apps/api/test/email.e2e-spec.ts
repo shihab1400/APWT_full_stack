@@ -63,6 +63,9 @@ describe('Email (e2e)', () => {
 
   afterAll(async () => {
     const mine = { endsWith: DOMAIN };
+    await prisma.payment.deleteMany({
+      where: { OR: [{ user: { email: mine } }, { doctor: { user: { email: mine } } }] },
+    });
     await prisma.appointment.deleteMany({
       where: { OR: [{ patient: { email: mine } }, { doctor: { user: { email: mine } } }] },
     });
@@ -137,18 +140,25 @@ describe('Email (e2e)', () => {
       .set('Cookie', patient.cookies)
       .send({ doctorId: doctor.doctorId, startsAt: slot.startsAt, type: 'ONLINE', note: 'private worry' })
       .expect(201);
+    expect(outbox).toHaveLength(0); // nothing until it's paid
+    await http()
+      .post('/api/payments/test/complete')
+      .set('Cookie', patient.cookies)
+      .send({ reference: booked.body.reference, outcome: 'PAID' })
+      .expect(200);
     expect(to(doctor.email).map((e) => e.subject)).toEqual(['New booking request from Mail appt-pat']);
-    expect(to(patient.email)).toHaveLength(0); // in-app receipt only
+    expect(to(patient.email)[0].subject).toBe('Payment received: request sent to Mail appt-doc');
     expect(JSON.stringify(outbox)).not.toContain('private worry');
+    outbox.length = 0;
 
     await http()
-      .post(`/api/doctor/appointments/${booked.body.id}/decline`)
+      .post(`/api/doctor/appointments/${booked.body.appointment.id}/decline`)
       .set('Cookie', doctor.cookies)
       .send({ reason: 'Fully booked' })
       .expect(201);
-    const [declined] = to(patient.email);
-    expect(declined.subject).toBe('Mail appt-doc declined your request');
-    expect(declined.paragraphs.join(' ')).toContain('Fully booked');
+    const subjects = to(patient.email).map((e) => e.subject);
+    expect(subjects).toEqual(['A refund of 500 BDT is on its way', 'Mail appt-doc declined your request']);
+    expect(to(patient.email)[1].paragraphs.join(' ')).toContain('Fully booked');
   });
 
   it('emails the 15-minute reminder to both sides', async () => {
