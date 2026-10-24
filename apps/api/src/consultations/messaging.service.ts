@@ -8,6 +8,7 @@ import {
 } from '@mindease/shared';
 import { formatDhaka } from '../common/dhaka-time.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { FieldCipher } from '../crypto/field-cipher.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { detectCrisis } from '../risk/crisis-detector.js';
 import { RiskService } from '../risk/risk.service.js';
@@ -47,6 +48,7 @@ export class MessagingService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly risk: RiskService,
+    private readonly cipher: FieldCipher,
   ) {}
 
   async list(userId: string, now = new Date()): Promise<ConsultationSummary[]> {
@@ -69,7 +71,7 @@ export class MessagingService {
 
     const rank = { OPEN: 0, UPCOMING: 1, CLOSED: 2 } as const;
     return appts
-      .map((a) => summarize(a, userId, now, unreadBy.get(a.id) ?? 0, latestBy.get(a.id)))
+      .map((a) => summarize(a, userId, now, unreadBy.get(a.id) ?? 0, this.plain(latestBy.get(a.id))))
       .sort(
         (a, b) =>
           rank[a.window] - rank[b.window] ||
@@ -96,8 +98,8 @@ export class MessagingService {
     });
     messages.reverse();
     return {
-      ...summarize(appt, userId, now, 0, messages.at(-1)),
-      messages: messages.map(toItem),
+      ...summarize(appt, userId, now, 0, this.plain(messages.at(-1))),
+      messages: messages.map((m) => toItem(this.plain(m)!)),
     };
   }
 
@@ -119,7 +121,7 @@ export class MessagingService {
     // Safety net for the patient side; the doctor is a professional already present.
     const flagged = fromPatient && detectCrisis(body).flagged;
     const message = await this.prisma.consultationMessage.create({
-      data: { appointmentId, senderId: userId, body, flagged },
+      data: { appointmentId, senderId: userId, body: this.cipher.encrypt(body, 'ConsultationMessage.body'), flagged },
     });
     if (flagged) {
       await this.risk.raise({
@@ -131,11 +133,16 @@ export class MessagingService {
       });
     }
 
-    const item = toItem(message);
+    const item = toItem({ ...message, body });
     for (const id of [appt.patientId, appt.doctor.userId]) {
       this.notifications.push(id, { event: 'message', data: item });
     }
     return item;
+  }
+
+  /** The message with its body decrypted. */
+  private plain(m: ConsultationMessage | undefined): ConsultationMessage | undefined {
+    return m && { ...m, body: this.cipher.decrypt(m.body, 'ConsultationMessage.body') };
   }
 
   private async markRead(userId: string, appt: ThreadRow) {

@@ -19,6 +19,7 @@ import { formatDhaka } from '../common/dhaka-time.js';
 import type { RequestUser } from '../common/decorators.js';
 import { publicDoctorWhere } from '../content/content.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { FieldCipher } from '../crypto/field-cipher.js';
 import { PaymentsService } from '../payments/payments.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AvailabilityService } from '../scheduling/availability.service.js';
@@ -64,6 +65,7 @@ export class AppointmentsService {
     private readonly tiers: TierService,
     private readonly notifications: NotificationsService,
     private readonly payments: PaymentsService,
+    private readonly cipher: FieldCipher,
   ) {}
 
   // ───────────── Patients ─────────────
@@ -114,7 +116,7 @@ export class AppointmentsService {
           status: 'PENDING_PAYMENT',
           startsAt: slot.startsAt,
           endsAt: slot.endsAt,
-          patientNote: dto.note || null,
+          patientNote: this.cipher.encryptOptional(dto.note, 'Appointment.patientNote'),
           shareAssessments: dto.shareAssessments,
         },
       });
@@ -136,14 +138,14 @@ export class AppointmentsService {
       productName: `Consultation with ${doctor.user.name}`,
       customer: { name: appointment.patient.name, email: appointment.patient.email },
     });
-    return { ...checkout, appointment: toItem(appointment) };
+    return { ...checkout, appointment: this.item(appointment) };
   }
 
   /** The patient turns sharing of their assessment results with this doctor on or off. */
   async setSharing(userId: string, id: string, share: boolean): Promise<AppointmentItem> {
     const appt = await this.find(id, { patientId: userId });
     await this.prisma.appointment.update({ where: { id: appt.id }, data: { shareAssessments: share } });
-    return toItem(await this.prisma.appointment.findUniqueOrThrow({ where: { id: appt.id }, include: appointmentInclude }));
+    return this.item(await this.prisma.appointment.findUniqueOrThrow({ where: { id: appt.id }, include: appointmentInclude }));
   }
 
   async listForPatient(userId: string): Promise<AppointmentItem[]> {
@@ -153,7 +155,7 @@ export class AppointmentsService {
       orderBy: { startsAt: 'desc' },
       take: 200,
     });
-    return rows.map(toItem);
+    return rows.map((a) => this.item(a));
   }
 
   async cancelByPatient(userId: string, id: string, reason?: string): Promise<AppointmentItem> {
@@ -183,7 +185,7 @@ export class AppointmentsService {
       orderBy: { startsAt: 'asc' },
       take: 300,
     });
-    return rows.map(toItem);
+    return rows.map((a) => this.item(a));
   }
 
   async accept(doctorUserId: string, id: string): Promise<AppointmentItem> {
@@ -258,10 +260,15 @@ export class AppointmentsService {
       orderBy: { startsAt: 'desc' },
       take: 500,
     });
-    return rows.map(toItem);
+    return rows.map((a) => this.item(a));
   }
 
   // ───────────── Helpers ─────────────
+
+  /** API shape with the patient's note decrypted. */
+  private item(a: AppointmentRow): AppointmentItem {
+    return { ...toItem(a), patientNote: this.cipher.decryptOptional(a.patientNote, 'Appointment.patientNote') };
+  }
 
   private async find(id: string, owner: Prisma.AppointmentWhereInput): Promise<AppointmentRow> {
     // Someone else's appointment looks the same as a missing one.
@@ -287,7 +294,7 @@ export class AppointmentsService {
     if (!count) {
       throw new ConflictException(`This appointment is ${appt.status.toLowerCase()} and can't be changed`);
     }
-    return toItem(await this.prisma.appointment.findUniqueOrThrow({ where: { id: appt.id }, include: appointmentInclude }));
+    return this.item(await this.prisma.appointment.findUniqueOrThrow({ where: { id: appt.id }, include: appointmentInclude }));
   }
 }
 

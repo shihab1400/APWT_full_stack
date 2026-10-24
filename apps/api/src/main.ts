@@ -17,7 +17,8 @@ async function bootstrap() {
     .setVersion('0.1.0')
     .addCookieAuth(ACCESS_TOKEN_COOKIE)
     .build();
-  SwaggerModule.setup('api/docs', app, () => SwaggerModule.createDocument(app, swagger));
+  const docs = env.ENABLE_API_DOCS ? env.ENABLE_API_DOCS === 'true' : env.NODE_ENV !== 'production';
+  if (docs) SwaggerModule.setup('api/docs', app, () => SwaggerModule.createDocument(app, swagger));
 
   await app.listen(env.PORT);
   console.log(`API on http://localhost:${env.PORT}/api  ·  docs at /api/docs`);

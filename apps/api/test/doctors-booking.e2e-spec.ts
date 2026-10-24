@@ -338,6 +338,9 @@ describe('Doctors, scheduling & booking (e2e)', () => {
         patientNote: 'Trouble sleeping',
         patient: { name: `${NAME} patient` },
       });
+      // The note is encrypted at rest but returned in plain text.
+      const raw = await prisma.appointment.findUniqueOrThrow({ where: { id: res.body.appointment.id } });
+      expect(raw.patientNote).toMatch(/^enc:v1:/);
       // Held while the patient pays.
       expect(await openSlots()).not.toContain(monday11.toISOString());
       const other = await signUp('other', 'USER', { paid: true });

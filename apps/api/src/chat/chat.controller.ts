@@ -10,6 +10,7 @@ import {
   Res,
 } from '@nestjs/common';
 import { ApiBody, ApiCookieAuth, ApiOperation, ApiProduces, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import {
   ACCESS_TOKEN_COOKIE,
@@ -54,6 +55,7 @@ export class ChatController {
   }
 
   @Post('messages')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Send a message and stream the reply',
     description:

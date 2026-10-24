@@ -19,7 +19,7 @@ Requirements:
 
 1. Create the database: `CREATE DATABASE mindease;`
 2. Copy `apps/api/.env.example` to `apps/api/.env`.
-3. In that file, set `DATABASE_URL` and `JWT_ACCESS_SECRET`.
+3. In that file, set `DATABASE_URL`, `JWT_ACCESS_SECRET` and `DATA_ENCRYPTION_KEY` (the file shows how to generate it).
 4. Install, migrate and seed:
    ```sh
    pnpm install
@@ -59,6 +59,13 @@ Without credentials, a built-in **test checkout** (Pay / Fail / Cancel buttons) 
 - **Holds:** a booking holds its slot for 15 minutes while the patient pays. Unpaid holds are released automatically.
 - **Refunds:** if a paid booking is declined, cancelled by either side, or expires, the payment becomes "Refund due". An admin sends the money back from the SSLCommerz merchant panel, then marks it refunded at `/admin/payments` (audited).
 
+## Security and privacy
+
+- **Encryption at rest:** AI chats, chat titles, consultation notes, consultation messages and booking notes are encrypted with AES-256-GCM using `DATA_ENCRYPTION_KEY`. Keep that key backed up separately from the database.
+- **Rate limits:** applied per signed-in user, or per visitor address for guests. Many users in Bangladesh share one IP through mobile carriers, so limiting by IP alone would block neighbours.
+- **Headers:** security headers and a Content-Security-Policy on every page. The API refuses weak or development settings when `NODE_ENV=production`.
+- **Deployment:** see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for Render + Vercel or a single VPS, backups and a security checklist.
+
 ## Scripts (from the repo root)
 
 | Command | |
@@ -68,6 +75,10 @@ Without credentials, a built-in **test checkout** (Pay / Fail / Cancel buttons) 
 | `pnpm lint` / `pnpm typecheck` | Static checks |
 | `pnpm test` | Unit tests (Vitest) |
 | `pnpm --filter api test:e2e` | API end-to-end tests. They use the DB in `.env` and clean up after themselves |
+| `pnpm --filter web test:browser` | Browser tests (Playwright) of the main journeys. First time: `pnpm --filter web exec playwright install chromium` |
+| `pnpm --filter api db:backup` | Back up the database to `apps/api/backups/` (keeps the newest 14) |
+| `pnpm --filter api db:restore <file> --yes` | Restore a backup (replaces all data) |
+| `pnpm --filter api db:encrypt` | Encrypt data written before encryption at rest was enabled (safe to re-run) |
 | `pnpm db:studio` | Browse the database |
 
 ## Roles

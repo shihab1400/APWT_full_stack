@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Param,
   ParseUUIDPipe,
   Post,
@@ -35,6 +36,9 @@ import { CurrentUser, Roles, type RequestUser } from '../common/decorators.js';
 import { ZodValidationPipe, openApiSchema } from '../common/zod.js';
 import { DoctorProfileService } from './doctor-profile.service.js';
 import type { UploadedFileLike } from './license-storage.js';
+
+/** Lets the browser's PDF viewer show a licence opened in a tab, and nothing else. */
+const LICENSE_CSP = "default-src 'none'; object-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'";
 
 const EXTENSION: Record<string, string> = {
   'application/pdf': 'pdf',
@@ -85,6 +89,8 @@ export class DoctorProfileController {
   }
 
   @Get('license')
+  @Header('Content-Security-Policy', LICENSE_CSP)
+  @Header('Cache-Control', 'private, no-store')
   @ApiOperation({ summary: 'View my uploaded licence' })
   async license(@CurrentUser() user: RequestUser) {
     return licenseFile(await this.profiles.ownLicense(user.id));
@@ -114,6 +120,8 @@ export class AdminDoctorsController {
   }
 
   @Get(':id/license')
+  @Header('Content-Security-Policy', LICENSE_CSP)
+  @Header('Cache-Control', 'private, no-store')
   @ApiOperation({ summary: "View a doctor's uploaded licence" })
   async license(@Param('id', ParseUUIDPipe) id: string) {
     return licenseFile(await this.profiles.adminLicense(id));

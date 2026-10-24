@@ -10,6 +10,7 @@ import {
 } from '@mindease/shared';
 import { AiService, type AiTurn } from '../ai/ai.service.js';
 import { ContentService } from '../content/content.service.js';
+import { FieldCipher } from '../crypto/field-cipher.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { detectCrisis } from '../risk/crisis-detector.js';
 import { RiskService } from '../risk/risk.service.js';
@@ -48,6 +49,7 @@ export class ChatService {
     private readonly tiers: TierService,
     private readonly risk: RiskService,
     private readonly content: ContentService,
+    private readonly cipher: FieldCipher,
   ) {}
 
   async usage(user: { id: string; role: Role }): Promise<ChatUsage> {
@@ -73,7 +75,13 @@ export class ChatService {
         select: { id: true, title: true, updatedAt: true },
         take: 100,
       })
-      .then((rows) => rows.map((r) => ({ ...r, updatedAt: r.updatedAt.toISOString() })));
+      .then((rows) =>
+        rows.map((r) => ({
+          ...r,
+          title: this.cipher.decryptOptional(r.title, 'ChatSession.title'),
+          updatedAt: r.updatedAt.toISOString(),
+        })),
+      );
   }
 
   async messages(userId: string, sessionId: string): Promise<ChatMessageItem[]> {
@@ -83,7 +91,11 @@ export class ChatService {
       orderBy: { createdAt: 'asc' },
       select: { id: true, role: true, content: true, createdAt: true },
     });
-    return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
+    return rows.map((r) => ({
+      ...r,
+      content: this.cipher.decrypt(r.content, 'ChatMessage.content'),
+      createdAt: r.createdAt.toISOString(),
+    }));
   }
 
   async deleteSession(userId: string, sessionId: string): Promise<void> {
@@ -123,13 +135,13 @@ export class ChatService {
     const created =
       session ??
       (await this.prisma.chatSession.create({
-        data: { userId: user.id, title: titleFrom(input.content) },
+        data: { userId: user.id, title: this.cipher.encrypt(titleFrom(input.content), 'ChatSession.title') },
       }));
 
     return {
       userId: user.id,
       sessionId: created.id,
-      sessionTitle: created.title,
+      sessionTitle: this.cipher.decryptOptional(created.title, 'ChatSession.title'),
       content: input.content,
       crisis,
       overLimit,
@@ -144,7 +156,12 @@ export class ChatService {
     signal: AbortSignal,
   ): Promise<void> {
     const userMessage = await this.prisma.chatMessage.create({
-      data: { sessionId: turn.sessionId, role: 'USER', content: turn.content, flagged: turn.crisis },
+      data: {
+        sessionId: turn.sessionId,
+        role: 'USER',
+        content: this.cipher.encrypt(turn.content, 'ChatMessage.content'),
+        flagged: turn.crisis,
+      },
     });
     emit({
       event: 'session',
@@ -188,7 +205,7 @@ export class ChatService {
     if (!reply.trim()) return;
     const [assistantMessage] = await this.prisma.$transaction([
       this.prisma.chatMessage.create({
-        data: { sessionId: turn.sessionId, role: 'ASSISTANT', content: reply },
+        data: { sessionId: turn.sessionId, role: 'ASSISTANT', content: this.cipher.encrypt(reply, 'ChatMessage.content') },
       }),
       this.prisma.chatSession.update({
         where: { id: turn.sessionId },
@@ -207,7 +224,7 @@ export class ChatService {
     });
     return recent
       .reverse()
-      .map((m) => ({ role: m.role === 'USER' ? 'user' : 'model', text: m.content }));
+      .map((m) => ({ role: m.role === 'USER' ? 'user' : 'model', text: this.cipher.decrypt(m.content, 'ChatMessage.content') }));
   }
 
   private async ownedSession(userId: string, sessionId: string) {

@@ -94,7 +94,7 @@ Cross-cutting: global exception filter, Helmet, CORS allow-list, rate limiting (
 5. ✅ **Payments + subscription (done 2026-10-24):** SSLCommerz sandbox, upgrade flow, fee cap, transaction rollback, admin ledger.
 6. ✅ **Doctor tools + admin (done 2026-10-25):** consultation notes, earnings, reviews and moderation, user management, audit log, quiz CRUD.
 7. ✅ **Text messaging (done 2026-10-25):** per-appointment patient–doctor chat (WebSocket), message history, unread badges.
-8. **Hardening:** encryption at rest, rate limits, tests, performance pass, deployment (Vercel/Render or a VPS), daily `pg_dump` backup job.
+8. ✅ **Hardening (done 2026-10-25):** encryption at rest, rate limits, tests, performance pass, deployment (Vercel/Render or a VPS), daily `pg_dump` backup job.
 
 ## Testing (aligned with the PDF's levels)
 - Unit: Vitest in `api` (Nest 12 default) (scoring, fee cap, RBAC guards, risk detection) and Vitest in `web`.
@@ -157,7 +157,7 @@ Versions actually installed: Next.js 16.4, React 19.3, NestJS 12 (ESM, Vitest, o
   - The hotlines fall back to a built-in 999 entry when the API is unreachable.
 - **Seed:** hotlines, 10 FAQs in 4 categories, 4 articles, and 3 fictional demo doctors (development only, password `Doctor12345`).
 - **Price:** the paid plan costs `PAID_PLAN_MONTHLY_PRICE` = 499 BDT/month (`packages/shared/src/constants.ts`). This is a placeholder for the team to confirm.
-- **Not yet true:** the privacy policy describes the target system. Encryption at rest and daily backups are delivered in phase 8.
+- **Privacy policy:** it described the target system at this point. Encryption at rest and backups were delivered in phase 8.
 
 ## Phase 3 implementation notes (2026-10-24)
 - **Migration `assessment_and_chat`:**
@@ -296,3 +296,33 @@ Versions actually installed: Next.js 16.4, React 19.3, NestJS 12 (ESM, Vitest, o
 - **Safety:** crisis language in a patient message sets `flagged`, raises a HIGH `RiskAlert` (source CONSULTATION), shows the patient the hotline card, and shows the doctor a marker on that message.
 - **Reminders:** the 15-minute reminder for an online session links straight to the chat.
 - **Web:** `/dashboard/messages` and `/doctor/messages` (conversation list and thread, Enter to send), plus "Open chat" on appointment cards.
+
+## Phase 8 implementation notes (2026-10-25)
+- **Decisions (confirmed with the user):** make the app deploy-ready with a guide rather than deploying it; add a small Playwright suite.
+- **Encryption at rest:**
+  - **Fields:** AES-256-GCM (`crypto/field-cipher.ts`) for `ChatMessage.content`, `ChatSession.title`, `ConsultationNote.body`, `ConsultationMessage.body` and `Appointment.patientNote`.
+  - **Format:** `enc:v1:` + base64(iv | tag | ciphertext). The column name is authenticated data, so a value moved to another column won't decrypt.
+  - **Old rows:** values without the prefix are read as plaintext; `pnpm --filter api db:encrypt` migrates them (re-runnable).
+  - **Failures:** a value that can't be decrypted shows a placeholder instead of breaking the page.
+  - **Key:** `DATA_ENCRYPTION_KEY` (required). Assessment scores and risk levels stay plain because they are queried and are not free text.
+- **Rate limits:**
+  - **Tracking:** `UserThrottlerGuard` tracks signed-in users by verified token and guests by IP. Many users share an IP through carrier NAT in Bangladesh.
+  - **Behind the proxy:** `TRUST_PROXY` makes the API trust `X-Forwarded-For` from the Next.js rewrite. Without it, every visitor would share the Next server's IP.
+  - **New per-route limits:** AI chat 20/min, booking 10/min, reviews 10/min.
+- **Production safety:**
+  - The API won't start in production with a short JWT secret, a non-https `WEB_ORIGIN`, or no SSLCommerz credentials.
+  - Swagger is off in production unless `ENABLE_API_DOCS=true`.
+  - The seed refuses the default admin password in production.
+- **Security headers:**
+  - **Web:** Content-Security-Policy without nonces (keeps static and partially pre-rendered pages), X-Frame-Options DENY, nosniff, Referrer-Policy, Permissions-Policy, HSTS in production, and no `X-Powered-By`.
+  - **Licence files:** their own narrow CSP so browser PDF viewers work, plus `Cache-Control: no-store`.
+- **Backups:**
+  - `db:backup` writes a `pg_dump` custom-format archive and keeps the newest 14 (`BACKUP_DIR`, `BACKUP_KEEP`, `PG_BIN`).
+  - `db:restore <file> --yes` restores in one transaction.
+  - **Verified:** a backup restored into a scratch database had matching row counts. Scheduling and off-site copies are in `docs/DEPLOYMENT.md`.
+- **Performance:** migration `performance_indexes` adds indexes for payments by user, reviews by user, risk alerts by user, notes by doctor, unread messages by sender, and audit log by action.
+- **Tests:**
+  - **Playwright:** `apps/web/e2e/journeys.spec.ts` has 7 journeys against production builds on ports 3100/4100, with SSLCommerz, SMTP and Gemini off: guest browsing, protected-page redirects, registration and a high-risk assessment (FR_7), Premium upgrade and a paid booking through the test checkout (FR_8), doctor confirmation (FR_11), patient notification, and admin tools (FR_2, FR_3, #24). Test accounts are removed afterwards.
+  - **API:** a new `security.e2e-spec.ts` checks the database holds ciphertext and that rate limits apply per user and per visitor.
+  - **CI:** runs the browser suite too.
+- **Deployment guide:** `docs/DEPLOYMENT.md` covers Render + Vercel or one Ubuntu VPS (PM2, Nginx with SSE-friendly settings, certbot), the environment table, backups and a security checklist.

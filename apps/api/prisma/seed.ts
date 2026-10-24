@@ -20,6 +20,9 @@ const prisma = new PrismaClient({
 async function main() {
   const email = (process.env.SEED_ADMIN_EMAIL ?? 'admin@mindease.local').toLowerCase();
   const password = process.env.SEED_ADMIN_PASSWORD ?? 'Admin12345';
+  if (process.env.NODE_ENV === 'production' && (password === 'Admin12345' || password.length < 12)) {
+    throw new Error('Set SEED_ADMIN_PASSWORD to a strong password (12+ characters) before seeding production');
+  }
 
   const admin = await prisma.user.upsert({
     where: { email },

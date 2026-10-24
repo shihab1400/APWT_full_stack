@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AdminModule } from './admin/admin.module.js';
 import { AiModule } from './ai/ai.module.js';
 import { AppointmentsModule } from './appointments/appointments.module.js';
@@ -9,10 +9,12 @@ import { AuthModule } from './auth/auth.module.js';
 import { ChatModule } from './chat/chat.module.js';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard.js';
 import { RolesGuard } from './common/guards/roles.guard.js';
+import { UserThrottlerGuard } from './common/guards/throttler.guard.js';
 import { ConfigModule } from './config/config.module.js';
 import { ConsultationsModule } from './consultations/consultations.module.js';
 import { ContactModule } from './contact/contact.module.js';
 import { ContentModule } from './content/content.module.js';
+import { CryptoModule } from './crypto/crypto.module.js';
 import { DoctorsModule } from './doctors/doctors.module.js';
 import { HealthController } from './health.controller.js';
 import { MailModule } from './mail/mail.module.js';
@@ -28,6 +30,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module.js';
   imports: [
     ConfigModule,
     PrismaModule,
+    CryptoModule,
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     SubscriptionsModule,
     MailModule,
@@ -50,7 +53,7 @@ import { SubscriptionsModule } from './subscriptions/subscriptions.module.js';
   controllers: [HealthController],
   providers: [
     // Order matters: rate limit, then authenticate, then authorize.
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: UserThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],

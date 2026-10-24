@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBody, ApiCookieAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import {
   ACCESS_TOKEN_COOKIE,
@@ -23,6 +24,7 @@ export class ReviewsController {
   @Roles('USER')
   @ApiCookieAuth(ACCESS_TOKEN_COOKIE)
   @Post('appointments/:id/review')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Rate a completed session (once per appointment)' })
   @ApiBody({ schema: openApiSchema(reviewSchema) })
   create(

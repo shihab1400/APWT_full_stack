@@ -21,6 +21,9 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/mindease?schema=public
       JWT_ACCESS_SECRET: ci-only-secret-not-for-production
+      # CI-only key (32 zero bytes); real deployments use a random secret.
+      DATA_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      TRUST_PROXY: loopback
       SEED_ADMIN_EMAIL: admin@mindease.local
       SEED_ADMIN_PASSWORD: Admin12345
     steps:
@@ -38,3 +41,11 @@ jobs:
       - run: pnpm test
       - run: pnpm --filter api test:e2e
       - run: pnpm build
+      - run: pnpm --filter web exec playwright install --with-deps chromium
+      - run: pnpm --filter web test:browser
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results
+          path: apps/web/test-results/
+          retention-days: 7

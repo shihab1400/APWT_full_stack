@@ -16,3 +16,6 @@ apps/api/uploads/
 
 .DS_Store
 *.log
+apps/api/backups/
+apps/web/test-results/
+apps/web/playwright-report/

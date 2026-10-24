@@ -8,6 +8,7 @@ import type {
 } from '@mindease/shared';
 import { appointmentInclude, toItem } from '../appointments/appointments.service.js';
 import { DHAKA_OFFSET_MS } from '../common/dhaka-time.js';
+import { FieldCipher } from '../crypto/field-cipher.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { ConsultationNote, Prisma } from '../generated/prisma/client.js';
 
@@ -21,7 +22,10 @@ type AttemptRow = Prisma.QuizAttemptGetPayload<{ include: typeof attemptInclude 
 /** Doctor-side records: patients, private notes and earnings (FR #29–31). */
 @Injectable()
 export class ConsultationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cipher: FieldCipher,
+  ) {}
 
   async patients(doctorUserId: string): Promise<PatientSummary[]> {
     const appts = await this.prisma.appointment.findMany({
@@ -101,7 +105,11 @@ export class ConsultationsService {
       patient: { id: inCare[0].patient.id, name: inCare[0].patient.name },
       sharesAssessments,
       assessments: assessments.map(toAttempt),
-      appointments: appts.map((a) => ({ ...toItem(a), notes: a.notes.map(toNote) })),
+      appointments: appts.map((a) => ({
+        ...toItem(a),
+        patientNote: this.cipher.decryptOptional(a.patientNote, 'Appointment.patientNote'),
+        notes: a.notes.map((n) => this.toNote(n)),
+      })),
     };
   }
 
@@ -116,18 +124,22 @@ export class ConsultationsService {
       throw new ConflictException('Notes can be added to confirmed or completed sessions');
     }
     const note = await this.prisma.consultationNote.create({
-      data: { appointmentId, doctorId: appt.doctorId, body },
+      data: { appointmentId, doctorId: appt.doctorId, body: this.cipher.encrypt(body, 'ConsultationNote.body') },
     });
-    return toNote(note);
+    return this.toNote(note);
   }
 
   async updateNote(doctorUserId: string, noteId: string, body: string): Promise<ConsultationNoteItem> {
     const { count } = await this.prisma.consultationNote.updateMany({
       where: { id: noteId, doctor: { userId: doctorUserId } },
-      data: { body },
+      data: { body: this.cipher.encrypt(body, 'ConsultationNote.body') },
     });
     if (!count) throw new NotFoundException('Note not found');
-    return toNote(await this.prisma.consultationNote.findUniqueOrThrow({ where: { id: noteId } }));
+    return this.toNote(await this.prisma.consultationNote.findUniqueOrThrow({ where: { id: noteId } }));
+  }
+
+  private toNote(n: ConsultationNote): ConsultationNoteItem {
+    return toNote(n, this.cipher.decrypt(n.body, 'ConsultationNote.body'));
   }
 
   /** Completed, paid consultations (FR #31). Payouts from the platform account are handled outside the app. */
@@ -170,11 +182,11 @@ export class ConsultationsService {
 /** "2026-10" for the Dhaka calendar month of an instant. */
 const dhakaMonth = (d: Date) => new Date(d.getTime() + DHAKA_OFFSET_MS).toISOString().slice(0, 7);
 
-function toNote(n: ConsultationNote): ConsultationNoteItem {
+function toNote(n: ConsultationNote, body: string): ConsultationNoteItem {
   return {
     id: n.id,
     appointmentId: n.appointmentId,
-    body: n.body,
+    body,
     createdAt: n.createdAt.toISOString(),
     updatedAt: n.updatedAt.toISOString(),
   };

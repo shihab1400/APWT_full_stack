@@ -253,6 +253,7 @@ model Payment {
 
   @@index([status, createdAt])
   @@index([doctorId, status])
+  @@index([userId, createdAt])
 }
 
 // ───────────── AI chat ─────────────
@@ -371,6 +372,7 @@ model RiskAlert {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([severity, followedUp])
+  @@index([userId, createdAt])
 }
 
 // ───────────── Consultations ─────────────
@@ -387,6 +389,7 @@ model ConsultationNote {
   doctor      DoctorProfile @relation(fields: [doctorId], references: [id])
 
   @@index([appointmentId])
+  @@index([doctorId])
 }
 
 /// Patient ↔ doctor text messages for an ONLINE appointment.
@@ -404,6 +407,7 @@ model ConsultationMessage {
   sender      User        @relation(fields: [senderId], references: [id])
 
   @@index([appointmentId, createdAt])
+  @@index([senderId, readAt])
 }
 
 // ───────────── Reviews ─────────────
@@ -432,6 +436,7 @@ model Review {
   doctor      DoctorProfile @relation(fields: [doctorId], references: [id])
 
   @@index([doctorId, status])
+  @@index([userId])
 }
 
 // ───────────── Notifications ─────────────
@@ -520,4 +525,5 @@ model AuditLog {
 
   @@index([actorId, createdAt])
   @@index([targetType, targetId])
+  @@index([action, createdAt])
 }
